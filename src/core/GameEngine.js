@@ -150,7 +150,7 @@ export class GameEngine {
     for (let y = 0; y < size - 1; y += 1) {
       for (let x = 0; x < size - 1; x += 1) {
         for (const orientation of ['H', 'V']) {
-          const wall = { orientation, x, y };
+    const wall = { orientation, x, y, playerId };
           if (!this.wallError(wall)) placements.push(wall);
         }
       }
@@ -278,7 +278,7 @@ export class GameEngine {
     if (orientation !== 'H' && orientation !== 'V') return fail('INVALID_ORIENTATION');
     if (player.wallsLeft <= 0) return fail('NO_WALLS_LEFT');
 
-    const wall = { orientation, x, y };
+    const wall = { orientation, x, y, playerId };
     const error = this.wallError(wall);
     if (error) return fail(error);
 

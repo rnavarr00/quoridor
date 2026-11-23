@@ -374,8 +374,9 @@ export class Room {
     const horizontal = [];
     const vertical = [];
     for (const wall of engineState.walls) {
-      if (wall.orientation === 'H') horizontal.push({ x: wall.x, y: wall.y });
-      else vertical.push({ x: wall.x, y: wall.y });
+      const entry = { x: wall.x, y: wall.y, playerId: wall.playerId ?? null };
+      if (wall.orientation === 'H') horizontal.push(entry);
+      else vertical.push(entry);
     }
 
     return {

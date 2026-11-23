@@ -145,6 +145,14 @@ test('anti-encierro rechaza la pared que deja sin camino', () => {
   assert.equal(hasPath({ r: 0, c: 0 }, { r: 7, c: 7 }, [{ orientation: 'H', x: 0, y: 0 }, { orientation: 'V', x: 1, y: 0 }], 8), false);
 });
 
+test('la pared conserva el jugador que la colocó', () => {
+  const engine = engineWith(twoPlayers());
+  const result = engine.placeWall('a', 'H', 0, 0);
+  assert.equal(result.ok, true);
+  assert.deepEqual(engine.getState().walls[0], { orientation: 'H', x: 0, y: 0, playerId: 'a' });
+  assert.deepEqual(result.events[0].wall, { orientation: 'H', x: 0, y: 0, playerId: 'a' });
+});
+
 test('colisiones de paredes: solape, L permitida y cruce', () => {
   const engine = engineWith(twoPlayers());
   engine.state.walls.push({ orientation: 'H', x: 2, y: 2 });

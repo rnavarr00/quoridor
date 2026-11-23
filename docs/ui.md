@@ -103,7 +103,7 @@ Obligatorio en todas las pantallas:
 - **Navegación completa por teclado:**
   - Tab/Shift+Tab entre regiones y controles.
   - Tablero con `tabindex` móvil (roving tabindex): flechas para celdas, `Home`/`End` para extremos de fila, `Enter`/`Espacio` para actuar.
-  - Paredes: modo pared, flechas para anclas legales, `R` para rotar, `Enter` para colocar, `Escape` para cancelar.
+  - Paredes: anclas legales con foco, flechas para desplazarse, `R` para rotar (teclado), `Enter` para colocar, `Escape` para ocultar el preview.
 - **Etiquetas ARIA en español** y nombres accesibles que incluyan coordenada, ocupante y estado.
 - **Color no es el único indicador:** inicial en la ficha, patrón de fantasma, textos “Tú”, “Host”, “Turno”, “Desconectado”, iconos con texto.
 - **Contraste:** texto normal ≥ 4.5:1; texto grande ≥ 3:1; componentes y bordes de foco ≥ 3:1.
@@ -919,25 +919,16 @@ Posicionamiento exacto de paredes (coordenadas 1-based de CSS Grid, según `boar
 
 - Anclas válidas: `x` e `y` de 0 a `size - 2`.
 - Cada ancla es una intersección entre celdas; puede alojar una pared H, V o ambas cruzadas.
-- Se renderiza un botón de ancla por intersección:
-  - Tamaño visual pequeño, pero área táctil ampliada a 44 × 44 px en móvil.
-  - Solo las anclas legales reciben `data-legal="true"` y son interactivas.
-  - Las anclas ilegales no muestran preview, no reciben foco y no tienen `pointer-events`.
-- Modo pared:
-  - Botón “Pared” en el footer o junto al tablero; `aria-pressed`.
-  - Atajo de teclado `W` para entrar/salir del modo pared (opcional; documentarlo en “Cómo jugar”).
-  - En modo pared, las flechas navegan entre anclas legales y `Enter` coloca.
-- Orientación:
-  - `H` por defecto.
-  - Tecla `R` o botón “Rotar H/V” alterna la orientación.
-  - La orientación actual se anuncia y se muestra en el selector de pared.
-- Escritorio:
-  - Hover/foco sobre ancla legal muestra preview gris de la pared en la orientación actual.
-  - Click coloca la pared inmediatamente.
-- Táctil:
-  - Primer tap selecciona el ancla y muestra preview.
-   - Segundo tap sobre el mismo preview confirma; botón “Colocar” en el selector inferior: **Fuera de v1**.
-  - “Cancelar” o tocar fuera deselecciona.
+- Se renderiza un botón de ancla por intersección para teclado; las anclas legales reciben `data-legal="true"` y un único `tabIndex` móvil (roving).
+- El ratón **no necesita modo ni atajo**:
+  - Todas las paredes legales (H y V) se muestran como pistas interactivas sobre los canales.
+  - Al pasar el cursor por un canal se resalta la pista legal más cercana y se muestra el preview con el color del jugador.
+  - Un click sobre esa pista coloca la pared inmediatamente.
+  - Si H y V se solapan, gana la pista cuyo centro esté más cerca del cursor.
+- Teclado:
+  - `H` por defecto; `R` alterna la orientación del ancla enfocada y se anuncia.
+  - Flechas navegan entre anclas legales de la orientación actual; `Enter`/`Espacio` coloca; `Escape` oculta el preview.
+- No hay botones “Pared” ni “Rotar”.
 - No mostrar previews de paredes ilegales, sin paredes restantes, fuera de turno o durante reconexión.
 - Contador de paredes restantes visible en el panel y en el footer; no descontar hasta `server.gameState`.
 - Al colocar:
@@ -951,13 +942,13 @@ Posicionamiento exacto de paredes (coordenadas 1-based de CSS Grid, según `boar
 
 #### 7.6.2 Representación
 
-- **Preview:** gris (`--color-wall-preview`), opacidad 0.7, sin sombra fuerte; H ocupa el canal horizontal y V el vertical. La longitud visual abarca dos celdas.
-- **Pared colocada:** color `--color-wall`, relieve con `box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 1px 2px rgba(15,23,42,.25)`, extremos redondeados, `z-index: var(--z-wall)`.
-- **Pared del jugador:** opcional, pequeño remate con el color del jugador para atribución; nunca el color como única información.
+- **Preview:** usa `--wall-color` con el color del jugador que va a colocar (fallback `--color-wall-preview`), opacidad 0.85, sin sombra fuerte; H ocupa el canal horizontal y V el vertical. La longitud visual abarca dos celdas.
+- **Pared colocada:** usa `--wall-color` derivado de `walls[H|V][].playerId` → `players[].colorIndex` (fallback `--color-wall`), con el mismo relieve, extremos redondeados y `z-index: var(--z-wall)`.
+- **Atribución:** el color identifica al autor, pero no es el único indicador: la tarjeta de cada jugador y su ficha usan el mismo color y las paredes conservan su `aria-label`.
 - **Animación:** escala/opacidad de 120–160 ms; en `prefers-reduced-motion`, aparición inmediata.
 - **Relación con celdas:** las paredes no deben tapar fichas ni puntos de movimiento; las fichas tienen `z-index` superior.
 - **Accesibilidad:** `aria-label` “Pared horizontal entre C4 y C5” / “Pared vertical entre D4 y E4”; las paredes colocadas son contenido estático, no botones.
-- **Responsive:** en pantallas estrechas, las anclas legales deben seguir siendo alcanzables; si el área táctil se solapa, usar el selector de pared con confirmación explícita en lugar de clicks ambiguos (**Fuera de v1**).
+- **Responsive:** en pantallas estrechas se reduce el tamaño máximo de celda, pero el canal de pared se mantiene visible y las pistas siguen siendo alcanzables con el dedo; no se usa selector de confirmación.
 
 ### 7.7 Temporizador de 30 s
 
@@ -1188,7 +1179,7 @@ Notas:
 | `--color-cell` | `#FFFFFF` | Cara de celda. | — |
 | `--color-cell-border` | `#E2E8F0` | Borde interno de celda. | — |
 | `--color-board` | `#E2E8F0` | Fondo del tablero/canales. | — |
-| `--color-wall` | `#334155` | Paredes colocadas. | 10:1 sobre blanco. |
+| `--color-wall` | `#334155` | Color de fallback de paredes sin `playerId`. | 10:1 sobre blanco. |
 | `--color-wall-preview` | `#94A3B8` | Preview de pared. | 3:1 sobre blanco. |
 | `--color-accent` | `#0F766E` | Acción primaria. | Blanco 5.5:1. |
 | `--color-accent-strong` | `#115E59` | Hover/active primario. | Blanco 6.9:1. |
@@ -1275,7 +1266,7 @@ Notas:
 | `--control-min` | 44 px | Altura mínima de controles. |
 | `--touch-min` | 44 px | Objetivo táctil mínimo. |
 | `--board-gap` | 2 px | Gap visual entre celdas. |
-| `--wall-thickness` | `clamp(2px, 0.35vmin, 5px)` | Grosor de canales y paredes. |
+| `--wall-thickness` | `clamp(6px, 1vmin, 10px)` | Grosor de canales y paredes. |
 | `--cell-size` | fórmula §10.7 | Lado de celda. |
 | `--board-size` | 8..20 | Número de celdas por lado. |
 
@@ -1285,32 +1276,39 @@ El tablero debe caber sin scroll en 1366 × 768 con header, footer y panel later
 
 Dimensiones de referencia desktop:
 
-- Ancho disponible: `100vw - panel(320px) - gap(16px) - padding(32px) = 100vw - 368px`.
-- Alto disponible: `100vh - header(64px) - footer(112px) - gaps/padding(48px) = 100vh - 224px`.
-- `--available = min(ancho, alto)`.
+- Ancho disponible: el del área `main` (depende del panel lateral).
+- Alto disponible: `100dvh - site-header(64px) - padding(16px) - game-header(56px) - footer(88px) - gaps(32px) = 100dvh - 256px`.
+- `--board-available = min(ancho, alto)`.
 
 ```css
 :root {
   --panel-width: 320px;
-  --header-height: 64px;
-  --footer-height: 112px;
-  --wall-thickness: clamp(2px, 0.35vmin, 5px);
-  --available: min(calc(100vw - 368px), calc(100vh - 224px));
+  --site-header-height: 64px;
+  --header-height: 56px;
+  --footer-height: 88px;
+  --wall-thickness: clamp(6px, 1vmin, 10px);
+  --board-available: min(
+    100%,
+    calc(100dvh - var(--site-header-height) - 2 * var(--space-2) -
+      var(--header-height) - var(--footer-height) - 4 * var(--space-2))
+  );
   --cell-size: clamp(
     14px,
-    calc((var(--available) - (var(--board-size) - 1) * var(--wall-thickness)) / var(--board-size)),
-    64px
+    calc((var(--board-available) - (var(--board-size) + 1) * var(--wall-thickness)) / var(--board-size)),
+    72px
   );
 }
 
 @media (max-width: 767px) {
   :root {
-    --available: calc(100vw - 32px);
-    --wall-thickness: clamp(2px, 0.5vmin, 4px);
+    --wall-thickness: clamp(5px, 1.2vmin, 8px);
+  }
+  .board {
+    --board-available: min(calc(100vw - 2 * var(--space-3)), calc(100dvh - var(--site-header-height) - 200px));
     --cell-size: clamp(
       12px,
-      calc((var(--available) - (var(--board-size) + 1) * var(--wall-thickness)) / var(--board-size)),
-      48px
+      calc((var(--board-available) - (var(--board-size) + 1) * var(--wall-thickness)) / var(--board-size)),
+      44px
     );
   }
 }
@@ -1320,14 +1318,14 @@ Notas de implementación:
 
 - La división por una variable CSS puede no estar soportada en navegadores antiguos. El renderer mide el contenedor con `ResizeObserver` y fija `--cell-size` en píxeles como fallback; la fórmula `clamp()` sigue siendo el valor de referencia.
 - El tablero ocupa `size * cell-size + (size + 1) * wall-thickness`: los canales inicial y final ya están incluidos en las `2n + 1` pistas, así que no se añade padding extra.
-- En 1366 × 768: `--available` = 544 px. Con `--wall-thickness` ≈ 3 px:
-  - size 8: celda ≈ 64 px (clamp), tablero ≈ 533 px.
-  - size 12: celda ≈ 42.6 px, tablero ≈ 544 px.
-  - size 20: celda ≈ 24.3 px, tablero ≈ 544 px.
-- En móvil de 390 px: `--available` = 358 px. Con pared de 2 px:
-  - size 20: celda ≈ 16 px, tablero ≈ 358 px.
-  - size 8: celda ≈ 43 px, tablero ≈ 358 px.
-- En 320 px: size 20 con celda mínima de 12 px ocupa ≈ 278 px y cabe; si no cabe, el contenedor del tablero permite scroll.
+- En 1366 × 768: `--board-available` = 512 px. Con `--wall-thickness` ≈ 7.7 px:
+  - size 8: celda ≈ 56.7 px, tablero ≈ 512 px.
+  - size 12: celda ≈ 35.1 px, tablero ≈ 512 px.
+  - size 20: celda ≈ 20.2 px, tablero ≈ 512 px.
+- En móvil de 390 px: `--board-available` = 366 px. Con pared de 5 px:
+  - size 20: celda ≈ 13.1 px, tablero ≈ 366 px.
+  - size 8: celda ≈ 40.1 px, tablero ≈ 366 px.
+- En 320 px: size 20 con celda mínima de 12 px ocupa ≈ 345 px; si no cabe, el contenedor del tablero permite scroll.
 - El `aside` nunca reduce la celda por debajo del mínimo; en ese caso, el panel se colapsa (tablet/móvil) antes que encoger el tablero.
 
 ### 10.8 Tabla de tokens CSS
@@ -1402,7 +1400,7 @@ Notas de implementación:
 | `--control-min` | `44px` | Tamaño. |
 | `--touch-min` | `44px` | Tamaño. |
 | `--board-gap` | `2px` | Tablero. |
-| `--wall-thickness` | `clamp(2px, .35vmin, 5px)` | Tablero. |
+| `--wall-thickness` | `clamp(6px, 1vmin, 10px)` | Tablero. |
 | `--cell-size` | fórmula §10.7 | Tablero. |
 | `--board-size` | `8..20` | Tablero. |
 | `--player-color` | `var(--color-player-N)` | Contexto local. |

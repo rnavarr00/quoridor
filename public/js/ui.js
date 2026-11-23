@@ -103,14 +103,7 @@ class UI {
     this.board = new BoardRenderer(this.el.boardFrame, {
       onMove: (payload) => this.handlers.onBoardMove?.(payload),
       onWall: (payload) => this.handlers.onBoardWall?.(payload),
-      onRotate: (orientation) => this.updateWallOrientation(orientation),
       onAnnounce: (message) => this.announce(message),
-      onWallModeChange: (state) => this.onWallModeChange(state),
-      onCancelWall: () => {
-        this.board?.setWallMode(false);
-        this.updateWallControls(this.lastGameState, this.handlers.getMyId?.(), true);
-        this.announce('Modo pared cancelado.');
-      },
     });
     this.bindEvents();
     this.applyPrefs();
@@ -137,7 +130,7 @@ class UI {
       'game-copy-code', 'game-status', 'game-connection-dot', 'game-status-text',
       'players-drawer-toggle', 'game-main', 'game-message', 'aside-backdrop', 'game-aside',
       'close-aside', 'game-players', 'leave-game', 'self-avatar', 'self-name', 'self-meta',
-      'self-walls', 'self-goal', 'wall-toggle', 'wall-orientation', 'wall-rotate',
+      'self-walls', 'self-goal',
       'game-leave-inline', 'game-timer', 'timer-value', 'timer-fill', 'patterns-toggle',
       'contrast-toggle', 'fullscreen-toggle', 'game-howto', 'gameover-title',
       'gameover-announcement', 'gameover-avatar', 'gameover-winner-name', 'gameover-reason',
@@ -296,8 +289,6 @@ class UI {
     this.el.closeAside?.addEventListener('click', () => this.closeAside(true));
     this.el.asideBackdrop?.addEventListener('click', () => this.closeAside(true));
 
-    this.el.wallToggle?.addEventListener('click', () => this.toggleWallMode());
-    this.el.wallRotate?.addEventListener('click', () => this.board?.rotateWall());
     this.el.leaveGame?.addEventListener('click', () => this.confirmLeaveGame());
     this.el.gameLeaveInline?.addEventListener('click', () => this.confirmLeaveGame());
 
@@ -854,21 +845,9 @@ class UI {
   }
 
   updateWallControls(view, myId, options = {}) {
-    if (!view || !myId) {
-      this.el.wallToggle.disabled = true;
-      this.el.wallRotate.disabled = true;
-      return;
-    }
-    const player = (view.players || []).find((entry) => entry.id === myId);
-    const isTurn = view.turnPlayerId === myId && view.status === 'playing' && !player?.ghost;
-    const canWall = Boolean(isTurn && player && player.wallsLeft > 0 && options.canAct);
-    this.el.wallToggle.disabled = !canWall;
-    this.el.wallRotate.disabled = !canWall;
-    const wallMode = Boolean(this.board?.wallMode);
-    this.el.wallToggle.setAttribute('aria-pressed', String(wallMode));
-    this.el.wallToggle.classList.toggle('is-active', wallMode);
-    this.el.wallOrientation.textContent = `(${this.board?.orientation || 'H'})`;
-    if (!canWall && wallMode) this.board.setWallMode(false);
+    const player = view && myId
+      ? (view.players || []).find((entry) => entry.id === myId)
+      : null;
     this.el.leaveGame.disabled = Boolean(options.pending);
     this.el.gameLeaveInline.disabled = Boolean(options.pending);
     if (player?.ghost) {
@@ -897,34 +876,6 @@ class UI {
       return;
     }
     this.el.gameMessage.hidden = true;
-  }
-
-  toggleWallMode() {
-    if (!this.board || this.el.wallToggle.disabled) return;
-    const enabled = !this.board.wallMode;
-    this.board.setWallMode(enabled, this.board.orientation);
-    if (enabled) {
-      this.board.focusBoard();
-      this.announce(`Modo pared activado. Orientación ${this.board.orientation === 'H' ? 'horizontal' : 'vertical'}.`);
-    } else {
-      this.announce('Modo pared desactivado.');
-    }
-    this.updateWallOrientation(this.board.orientation);
-    this.updateWallControls(this.lastGameState, this.handlers.getMyId?.());
-  }
-
-  onWallModeChange({ enabled, orientation }) {
-    this.el.wallToggle.setAttribute('aria-pressed', String(enabled));
-    this.el.wallToggle.classList.toggle('is-active', enabled);
-    this.el.wallOrientation.textContent = `(${orientation})`;
-    if (!enabled) {
-      const myId = this.handlers.getMyId?.();
-      this.updateWallControls(this.lastGameState, myId);
-    }
-  }
-
-  updateWallOrientation(orientation = 'H') {
-    this.el.wallOrientation.textContent = `(${orientation === 'V' ? 'V' : 'H'})`;
   }
 
   setGameOverPending(pending, mode = this.lastMode) {
@@ -1102,11 +1053,6 @@ class UI {
         this.announce(`Quedan ${seconds} segundos.`);
       }
     }
-  }
-
-  setWallMode(enabled) {
-    this.board?.setWallMode(Boolean(enabled), this.board?.orientation || 'H');
-    this.updateWallControls(this.lastGameState, this.handlers.getMyId?.());
   }
 
   toggleAside(force) {

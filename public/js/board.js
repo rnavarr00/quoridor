@@ -23,11 +23,17 @@ function decorativeSpan(className) {
 }
 
 function normalizeWalls(walls) {
+  const normalized = (orientation, wall) => ({
+    orientation,
+    x: wall.x,
+    y: wall.y,
+    playerId: typeof wall.playerId === 'string' ? wall.playerId : null,
+  });
   if (Array.isArray(walls)) {
     return walls
       .filter((wall) => wall && (wall.orientation === 'H' || wall.orientation === 'V')
         && Number.isInteger(wall.x) && Number.isInteger(wall.y))
-      .map((wall) => ({ orientation: wall.orientation, x: wall.x, y: wall.y }));
+      .map((wall) => normalized(wall.orientation, wall));
   }
   const result = [];
   if (walls && typeof walls === 'object') {
@@ -35,7 +41,7 @@ function normalizeWalls(walls) {
       const list = Array.isArray(walls[orientation]) ? walls[orientation] : [];
       for (const wall of list) {
         if (wall && Number.isInteger(wall.x) && Number.isInteger(wall.y)) {
-          result.push({ orientation, x: wall.x, y: wall.y });
+          result.push(normalized(orientation, wall));
         }
       }
     }
@@ -124,8 +130,8 @@ export class BoardRenderer {
     this.el.setAttribute('aria-label', 'Tablero de juego');
     this.el.addEventListener('click', (event) => this.onClick(event));
     this.el.addEventListener('keydown', (event) => this.onKeyDown(event));
-    this.el.addEventListener('pointerover', (event) => this.onPointerOver(event));
-    this.el.addEventListener('pointerout', (event) => this.onPointerOut(event));
+    this.el.addEventListener('pointermove', (event) => this.onPointerMove(event));
+    this.el.addEventListener('pointerleave', () => this.onPointerLeave());
     this.el.addEventListener('focusin', (event) => this.onFocusIn(event));
     this.el.addEventListener('focusout', (event) => this.onFocusOut(event));
     container.appendChild(this.el);
@@ -137,7 +143,7 @@ export class BoardRenderer {
     this.myId = null;
     this.canAct = false;
     this.pending = false;
-    this.wallMode = false;
+    this.isMyTurn = false;
     this.orientation = 'H';
     this.cells = new Map();
     this.anchors = new Map();
@@ -145,6 +151,7 @@ export class BoardRenderer {
     this.goalMarks = new Map();
     this.spawnMarks = new Map();
     this.wallEls = new Map();
+    this.hintEls = new Map();
     this.legalMoves = new Map();
     this.legalWalls = new Set();
     this.legalWallsByOrientation = { H: new Set(), V: new Set() };
@@ -155,8 +162,8 @@ export class BoardRenderer {
     this.hoverAnchor = null;
   }
 
-  setHandlers({ onMove, onWall, onRotate, onAnnounce, onWallModeChange, onCancelWall } = {}) {
-    this.options = { ...this.options, onMove, onWall, onRotate, onAnnounce, onWallModeChange, onCancelWall };
+  setHandlers({ onMove, onWall, onRotate, onAnnounce } = {}) {
+    this.options = { ...this.options, onMove, onWall, onRotate, onAnnounce };
   }
 
   gridTemplate(size) {
@@ -242,6 +249,7 @@ export class BoardRenderer {
     this.goalMarks.clear();
     this.pieces.clear();
     this.spawnMarks.clear();
+    this.hintEls.clear();
 
     for (const player of players) {
       const piece = document.createElement('span');
@@ -280,13 +288,12 @@ export class BoardRenderer {
     this.pending = Boolean(options.pending);
 
     this.el.classList.toggle('is-pending', this.pending);
-    this.el.classList.toggle('is-wall-mode', this.wallMode);
 
     const myPlayer = normalized.players.find((player) => player.id === this.myId) || null;
     const isMyTurn = Boolean(myPlayer && !myPlayer.ghost && normalized.turnPlayerId === this.myId && normalized.status === 'playing');
     this.isMyTurn = isMyTurn;
 
-    this.computeLegalHints(isMyTurn);
+    this.computeLegalHints(isMyTurn && this.canAct && !this.pending);
     this.updateCells();
     this.updatePieces();
     this.updateGoalsAndSpawns();
@@ -433,6 +440,15 @@ export class BoardRenderer {
     }
   }
 
+  colorForPlayer(playerId) {
+    const player = this.normalized?.players?.find((entry) => entry.id === playerId);
+    return colorVar(player?.colorIndex ?? 0);
+  }
+
+  get currentColor() {
+    return this.colorForPlayer(this.myId);
+  }
+
   updateWalls() {
     const seen = new Set();
     for (const wall of this.normalized.walls) {
@@ -444,13 +460,15 @@ export class BoardRenderer {
         element.className = `board__wall board__wall--${wall.orientation}`;
         element.dataset.key = key;
         element.setAttribute('role', 'img');
-        const label = wall.orientation === 'H'
-          ? `Pared horizontal entre ${coordinateLabel(wall.y, wall.x)} y ${coordinateLabel(wall.y + 1, wall.x)}`
-          : `Pared vertical en columna ${wall.x + 1}, fila ${wall.y + 1}`;
-        element.setAttribute('aria-label', label);
         this.wallEls.set(key, element);
         this.el.appendChild(element);
       }
+      const label = wall.orientation === 'H'
+        ? `Pared horizontal entre ${coordinateLabel(wall.y, wall.x)} y ${coordinateLabel(wall.y + 1, wall.x)}`
+        : `Pared vertical en columna ${wall.x + 1}, fila ${wall.y + 1}`;
+      element.setAttribute('aria-label', label);
+      if (wall.playerId) element.style.setProperty('--wall-color', this.colorForPlayer(wall.playerId));
+      else element.style.removeProperty('--wall-color');
       if (wall.orientation === 'H') {
         element.style.gridRow = String(2 * wall.y + 3);
         element.style.gridColumn = `${2 * wall.x + 2} / span 3`;
@@ -470,86 +488,71 @@ export class BoardRenderer {
   refreshWallHints() {
     if (!this.hints) return;
     this.hints.replaceChildren();
-    if (!this.wallMode || !this.pending) {
-      if (!this.wallMode) return;
-    }
-    const legal = this.legalWallsByOrientation[this.orientation] || new Set();
+    this.hintEls.clear();
+    if (!this.isMyTurn || !this.canAct || this.pending) return;
     const fragment = document.createDocumentFragment();
-    for (const key of legal) {
-      const [orientation, coordinates] = key.split(':');
-      const [x, y] = coordinates.split(',').map(Number);
-      const hint = document.createElement('span');
-      hint.className = `board__wall-hint board__wall-hint--${orientation}`;
-      if (orientation === 'H') {
-        hint.style.gridRow = String(2 * y + 3);
-        hint.style.gridColumn = `${2 * x + 2} / span 3`;
-      } else {
-        hint.style.gridColumn = String(2 * x + 3);
-        hint.style.gridRow = `${2 * y + 2} / span 3`;
+    for (const [orientation, keys] of Object.entries(this.legalWallsByOrientation)) {
+      for (const key of keys) {
+        const [coordinates] = key.split(':').slice(1);
+        const [x, y] = coordinates.split(',').map(Number);
+        const hint = document.createElement('span');
+        hint.className = `board__wall-hint board__wall-hint--${orientation}`;
+        hint.dataset.orientation = orientation;
+        hint.dataset.x = String(x);
+        hint.dataset.y = String(y);
+        hint.dataset.key = key;
+        if (orientation === 'H') {
+          hint.style.gridRow = String(2 * y + 3);
+          hint.style.gridColumn = `${2 * x + 2} / span 3`;
+        } else {
+          hint.style.gridColumn = String(2 * x + 3);
+          hint.style.gridRow = `${2 * y + 2} / span 3`;
+        }
+        this.hintEls.set(key, hint);
+        fragment.appendChild(hint);
       }
-      fragment.appendChild(hint);
     }
     this.hints.appendChild(fragment);
   }
 
+  anchorKeyFromWallKey(key) {
+    const parts = String(key).split(':');
+    return parts.length === 2 ? parts[1] : null;
+  }
+
   refreshWallInteractivity() {
     const legal = this.legalWallsByOrientation[this.orientation] || new Set();
-    const firstLegal = [...legal][0] || null;
-    if (this.wallMode && firstLegal && !this.activeAnchorKey) this.activeAnchorKey = firstLegal;
+    const firstAnchor = this.anchorKeyFromWallKey([...legal][0] || '');
+    const activeWallKey = this.activeAnchorKey
+      ? this.wallKey(this.orientation, ...this.activeAnchorKey.split(',').map(Number))
+      : null;
+    if (!activeWallKey || !legal.has(activeWallKey)) this.activeAnchorKey = firstAnchor;
     for (const [key, anchor] of this.anchors) {
-      const isLegal = this.wallMode && this.canAct && !this.pending && legal.has(this.wallKey(this.orientation, ...key.split(',').map(Number)));
+      const [x, y] = key.split(',').map(Number);
+      const isLegal = this.isMyTurn && this.canAct && !this.pending && legal.has(this.wallKey(this.orientation, x, y));
       anchor.classList.toggle('is-legal', isLegal);
       anchor.dataset.legal = isLegal ? 'true' : 'false';
       anchor.dataset.orientation = this.orientation;
-      if (isLegal && this.wallMode) {
-        anchor.tabIndex = this.activeAnchorKey === key ? 0 : -1;
-      } else {
-        anchor.tabIndex = -1;
-      }
-      anchor.setAttribute('aria-label', `Ancla ${Number(key.split(',')[0]) + 1}, ${Number(key.split(',')[1]) + 1}${isLegal ? `, pared ${this.orientation === 'H' ? 'horizontal' : 'vertical'} legal` : ''}`);
+      anchor.tabIndex = isLegal && this.activeAnchorKey === key ? 0 : -1;
+      anchor.setAttribute('aria-label', `Ancla ${x + 1}, ${y + 1}${isLegal ? `, pared ${this.orientation === 'H' ? 'horizontal' : 'vertical'} legal` : ''}`);
     }
-
-    if (this.wallMode) {
-      for (const cell of this.cells.values()) cell.tabIndex = -1;
-    } else {
-      this.activeAnchorKey = null;
-      this.refreshCellTabIndex();
-    }
-  }
-
-  setWallMode(enabled, orientation = this.orientation) {
-    const next = Boolean(enabled);
-    const nextOrientation = orientation === 'V' ? 'V' : 'H';
-    const changed = next !== this.wallMode || nextOrientation !== this.orientation;
-    this.wallMode = next;
-    this.orientation = nextOrientation;
-    this.el.classList.toggle('is-wall-mode', this.wallMode);
-    this.hidePreview();
-    if (!this.wallMode) {
-      this.activeAnchorKey = null;
-      this.refreshCellTabIndex();
-    } else {
-      const legal = [...(this.legalWallsByOrientation[this.orientation] || new Set())];
-      this.activeAnchorKey = legal[0] || null;
-    }
-    this.refreshWallHints();
-    this.refreshWallInteractivity();
-    if (changed && this.options.onWallModeChange) {
-      this.options.onWallModeChange({ enabled: this.wallMode, orientation: this.orientation });
-    }
-    return changed;
+    this.refreshCellTabIndex();
   }
 
   rotateWall() {
+    const previousAnchor = this.activeAnchorKey;
     const next = this.orientation === 'H' ? 'V' : 'H';
-    this.setWallMode(this.wallMode, next);
+    this.orientation = next;
+    this.hidePreview();
+    const nextWallKey = previousAnchor
+      ? this.wallKey(next, ...previousAnchor.split(',').map(Number))
+      : null;
+    this.activeAnchorKey = nextWallKey && this.legalWallsByOrientation[next]?.has(nextWallKey)
+      ? previousAnchor
+      : null;
+    this.refreshWallInteractivity();
     if (this.options.onRotate) this.options.onRotate(next);
-    if (this.wallMode) {
-      const legal = [...(this.legalWallsByOrientation[next] || new Set())];
-      this.activeAnchorKey = legal[0] || null;
-      this.refreshWallInteractivity();
-      if (this.activeAnchorKey) this.focusAnchor(this.activeAnchorKey);
-    }
+    if (this.activeAnchorKey) this.focusAnchor(this.activeAnchorKey);
     if (this.options.onAnnounce) {
       this.options.onAnnounce(`Orientación ${next === 'H' ? 'horizontal' : 'vertical'}.`);
     }
@@ -578,48 +581,45 @@ export class BoardRenderer {
     const key = this.cellKey(x, y);
     if (!this.cells.has(key)) return;
     this.activeCellKey = key;
-    if (!this.wallMode) this.refreshCellTabIndex();
+    this.refreshCellTabIndex();
     if (focus) this.cells.get(key)?.focus();
   }
 
   focusBoard() {
-    if (this.wallMode) {
-      if (this.activeAnchorKey) this.focusAnchor(this.activeAnchorKey);
-    } else {
-      const cell = this.cells.get(this.activeCellKey) || this.cells.values().next().value;
-      if (cell) cell.focus();
-    }
+    const cell = this.cells.get(this.activeCellKey) || this.cells.values().next().value;
+    if (cell) cell.focus();
   }
 
   focusAnchor(key) {
     const anchor = this.anchors.get(key);
     if (!anchor) return;
+    const [x, y] = key.split(',').map(Number);
     for (const [anchorKey, item] of this.anchors) item.tabIndex = anchorKey === key ? 0 : -1;
     this.activeAnchorKey = key;
     anchor.focus();
-    this.showPreview(key, this.orientation);
+    this.showPreview(x, y, this.orientation);
   }
 
-  showPreview(key, orientation) {
-    if (!this.preview || !this.wallMode) return;
-    const coords = key.split(',');
-    if (coords.length !== 2) return;
-    const x = Number(coords[0]);
-    const y = Number(coords[1]);
-    if (!Number.isInteger(x) || !Number.isInteger(y)) return;
-    const isLegal = this.legalWallsByOrientation[orientation]?.has(this.wallKey(orientation, x, y));
+  showPreview(x, y, orientation = this.orientation) {
+    if (!this.preview) return;
+    const nx = Number(x);
+    const ny = Number(y);
+    const nextOrientation = orientation === 'V' ? 'V' : 'H';
+    if (!Number.isInteger(nx) || !Number.isInteger(ny)) return;
+    const isLegal = this.legalWallsByOrientation[nextOrientation]?.has(this.wallKey(nextOrientation, nx, ny));
     if (!isLegal) {
       this.hidePreview();
       return;
     }
     this.preview.hidden = false;
-    this.preview.className = `board__wall-preview board__wall-preview--${orientation} is-visible`;
-    if (orientation === 'H') {
-      this.preview.style.gridRow = String(2 * y + 3);
-      this.preview.style.gridColumn = `${2 * x + 2} / span 3`;
+    this.preview.className = `board__wall-preview board__wall-preview--${nextOrientation} is-visible`;
+    this.preview.style.setProperty('--wall-color', this.currentColor);
+    if (nextOrientation === 'H') {
+      this.preview.style.gridRow = String(2 * ny + 3);
+      this.preview.style.gridColumn = `${2 * nx + 2} / span 3`;
     } else {
-      this.preview.style.gridColumn = String(2 * x + 3);
-      this.preview.style.gridRow = `${2 * y + 2} / span 3`;
+      this.preview.style.gridColumn = String(2 * nx + 3);
+      this.preview.style.gridRow = `${2 * ny + 2} / span 3`;
     }
   }
 
@@ -627,33 +627,37 @@ export class BoardRenderer {
     if (!this.preview) return;
     this.preview.hidden = true;
     this.preview.classList.remove('is-visible');
+    for (const hint of this.hintEls.values()) hint.classList.remove('is-hovered');
   }
 
   onClick(event) {
+    const hint = this.findHintNearPointer(event) || event.target.closest('.board__wall-hint');
+    if (hint) {
+      event.preventDefault();
+      this.placeWallAt(hint.dataset.x, hint.dataset.y, hint.dataset.orientation);
+      return;
+    }
     const anchor = event.target.closest('.board__anchor');
     if (anchor) {
       event.preventDefault();
-      const key = this.cellKey(Number(anchor.dataset.x), Number(anchor.dataset.y));
-      if (!this.wallMode || !this.legalWallsByOrientation[this.orientation]?.has(this.wallKey(this.orientation, Number(anchor.dataset.x), Number(anchor.dataset.y)))) {
-        return;
-      }
-      this.placeWallAt(anchor.dataset.x, anchor.dataset.y);
+      this.placeWallAt(anchor.dataset.x, anchor.dataset.y, this.orientation);
       return;
     }
     const cell = event.target.closest('.board__cell');
-    if (!cell || this.wallMode) return;
+    if (!cell || !this.isMyTurn || !this.canAct || this.pending) return;
     const key = this.cellKey(Number(cell.dataset.x), Number(cell.dataset.y));
-    if (!this.legalMoves.has(key) || !this.isMyTurn || this.pending) return;
+    if (!this.legalMoves.has(key)) return;
     this.setActiveCell(Number(cell.dataset.x), Number(cell.dataset.y));
     if (this.options.onMove) this.options.onMove({ x: Number(cell.dataset.x), y: Number(cell.dataset.y) });
   }
 
-  placeWallAt(x, y) {
-    if (!this.isMyTurn || this.pending) return;
+  placeWallAt(x, y, orientation = this.orientation) {
+    if (!this.isMyTurn || !this.canAct || this.pending) return;
     const nx = Number(x);
     const ny = Number(y);
-    if (!this.legalWallsByOrientation[this.orientation]?.has(this.wallKey(this.orientation, nx, ny))) return;
-    if (this.options.onWall) this.options.onWall({ orientation: this.orientation, x: nx, y: ny });
+    const nextOrientation = orientation === 'V' ? 'V' : 'H';
+    if (!this.legalWallsByOrientation[nextOrientation]?.has(this.wallKey(nextOrientation, nx, ny))) return;
+    if (this.options.onWall) this.options.onWall({ orientation: nextOrientation, x: nx, y: ny });
   }
 
   onKeyDown(event) {
@@ -668,8 +672,7 @@ export class BoardRenderer {
       }
       if (event.key === 'Escape') {
         event.preventDefault();
-        if (this.options.onCancelWall) this.options.onCancelWall();
-        else this.setWallMode(false);
+        this.hidePreview();
         return;
       }
       if (event.key === 'Enter' || event.key === ' ') {
@@ -688,22 +691,8 @@ export class BoardRenderer {
     if (!cell) return;
     const x = Number(cell.dataset.x);
     const y = Number(cell.dataset.y);
-    if (event.key === 'r' || event.key === 'R') {
-      event.preventDefault();
-      this.rotateWall();
-      return;
-    }
-    if (event.key === 'w' || event.key === 'W') {
-      event.preventDefault();
-      this.setWallMode(!this.wallMode, this.orientation);
-      return;
-    }
     if (event.key === 'Escape') {
-      if (this.wallMode) {
-        event.preventDefault();
-        if (this.options.onCancelWall) this.options.onCancelWall();
-        else this.setWallMode(false);
-      }
+      this.hidePreview();
       return;
     }
     if (event.key === 'Enter' || event.key === ' ') {
@@ -749,35 +738,61 @@ export class BoardRenderer {
     this.focusAnchor(legal[nextIndex].key);
   }
 
-  onPointerOver(event) {
-    if (!this.wallMode) return;
-    const anchor = event.target.closest('.board__anchor');
-    if (!anchor) return;
-    const key = this.cellKey(Number(anchor.dataset.x), Number(anchor.dataset.y));
-    this.hoverAnchor = key;
-    this.showPreview(key, this.orientation);
+  findHintNearPointer(event) {
+    if (!this.hintEls.size) return null;
+    const px = event.clientX;
+    const py = event.clientY;
+    if (!Number.isFinite(px) || !Number.isFinite(py)) return null;
+    let best = null;
+    let bestDistance = Infinity;
+    for (const hint of this.hintEls.values()) {
+      const rect = hint.getBoundingClientRect();
+      if (!rect.width || !rect.height) continue;
+      const dx = Math.max(rect.left - px, 0, px - rect.right);
+      const dy = Math.max(rect.top - py, 0, py - rect.bottom);
+      if (dx > 8 || dy > 8) continue;
+      const centerDistance = Math.hypot(
+        px - (rect.left + rect.right) / 2,
+        py - (rect.top + rect.bottom) / 2,
+      );
+      if (centerDistance < bestDistance) {
+        bestDistance = centerDistance;
+        best = hint;
+      }
+    }
+    return best;
   }
 
-  onPointerOut(event) {
-    if (!this.wallMode) return;
-    const anchor = event.target.closest('.board__anchor');
-    if (!anchor) return;
-    if (event.relatedTarget && anchor.contains(event.relatedTarget)) return;
+  onPointerMove(event) {
+    if (!this.isMyTurn || !this.canAct || this.pending) return;
+    const hint = this.findHintNearPointer(event);
+    if (!hint) {
+      if (!event.target.closest('.board__anchor')) this.hidePreview();
+      return;
+    }
+    this.hoverAnchor = hint.dataset.key;
+    for (const [key, other] of this.hintEls) {
+      other.classList.toggle('is-hovered', key === hint.dataset.key);
+    }
+    this.showPreview(hint.dataset.x, hint.dataset.y, hint.dataset.orientation);
+  }
+
+  onPointerLeave() {
+    if (document.activeElement?.closest?.('.board__anchor')) return;
     this.hoverAnchor = null;
     this.hidePreview();
   }
 
   onFocusIn(event) {
-    if (!this.wallMode) return;
     const anchor = event.target.closest('.board__anchor');
     if (!anchor) return;
-    const key = this.cellKey(Number(anchor.dataset.x), Number(anchor.dataset.y));
-    this.activeAnchorKey = key;
-    this.showPreview(key, this.orientation);
+    const x = Number(anchor.dataset.x);
+    const y = Number(anchor.dataset.y);
+    this.activeAnchorKey = this.cellKey(x, y);
+    this.showPreview(x, y, this.orientation);
   }
 
   onFocusOut(event) {
-    if (!this.wallMode) return;
     const anchor = event.target.closest('.board__anchor');
     if (!anchor) return;
     if (event.relatedTarget && anchor.parentElement?.contains(event.relatedTarget)) return;
@@ -792,6 +807,7 @@ export class BoardRenderer {
     this.goalMarks.clear();
     this.spawnMarks.clear();
     this.wallEls.clear();
+    this.hintEls.clear();
     this.view = null;
     this.normalized = null;
   }

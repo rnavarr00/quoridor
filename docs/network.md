@@ -926,8 +926,8 @@ En el segundo turno inválido acumulado se envía además `server.toast` y `serv
     }
   ],
   "walls": {
-    "H": [{ "x": 3, "y": 4 }],
-    "V": [{ "x": 5, "y": 8 }]
+    "H": [{ "x": 3, "y": 4, "playerId": "8f14e45f-ceea-4e7c-9a0e-6b1d2f3a4c5d" }],
+    "V": [{ "x": 5, "y": 8, "playerId": "2b7c9d10-3f4a-4b5c-8d6e-7f8091a2b3c4" }]
   },
   "turnPlayerId": "8f14e45f-ceea-4e7c-9a0e-6b1d2f3a4c5d",
   "remainingSeconds": 23,
@@ -954,8 +954,8 @@ En el segundo turno inválido acumulado se envía además `server.toast` y `serv
 | `players[].ghost` | boolean | `true` si está desconectado, salió o fue marcado AFK. |
 | `players[].connected` | boolean | `true` si hay socket activo. |
 | `players[].isTurn` | boolean | `true` solo para el jugador del turno actual y activo. |
-| `walls.H` | array de `{x,y}` | Anclas de paredes horizontales colocadas. |
-| `walls.V` | array de `{x,y}` | Anclas de paredes verticales colocadas. |
+| `walls.H` | array de `{x,y,playerId}` | Anclas de paredes horizontales colocadas; `playerId` identifica al autor para colorearla. |
+| `walls.V` | array de `{x,y,playerId}` | Anclas de paredes verticales colocadas; `playerId` identifica al autor para colorearla. |
 | `turnPlayerId` | UUID \| null | Jugador del turno; `null` si `finished`. |
 | `remainingSeconds` | entero 0..30 | Tiempo restante del turno, calculado en servidor. |
 | `turnNumber` | entero ≥1 | Número de turno global; empieza en 1 y se incrementa al avanzar. |

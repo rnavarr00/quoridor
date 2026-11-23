@@ -65,8 +65,8 @@ function localView(engine, remaining = LOCAL_TURN_SECONDS) {
       isTurn: state.turnPlayerId === player.id,
     })),
     walls: {
-      H: state.walls.filter((wall) => wall.orientation === 'H').map((wall) => ({ x: wall.x, y: wall.y })),
-      V: state.walls.filter((wall) => wall.orientation === 'V').map((wall) => ({ x: wall.x, y: wall.y })),
+      H: state.walls.filter((wall) => wall.orientation === 'H').map((wall) => ({ x: wall.x, y: wall.y, playerId: wall.playerId ?? null })),
+      V: state.walls.filter((wall) => wall.orientation === 'V').map((wall) => ({ x: wall.x, y: wall.y, playerId: wall.playerId ?? null })),
     },
     turnPlayerId: state.status === 'finished' ? null : state.turnPlayerId,
     remainingSeconds: remaining,

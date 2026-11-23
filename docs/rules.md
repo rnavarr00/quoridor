@@ -199,6 +199,7 @@ interface Wall {
   orientation: Orientation;
   x: number; // interseccion columna, 0 <= x < size - 1
   y: number; // interseccion fila,    0 <= y < size - 1
+  playerId: string; // jugador que coloco la pared
 }
 
 interface CampingState {
@@ -275,6 +276,8 @@ interface PublicGameState {
 | `startedAtTurn` | sí | no |
 | `viewerId` | no | sí |
 | resto de campos | sí | sí (misma forma pública) |
+
+`walls[].playerId` se conserva en la proyección pública para atribuir el color de cada pared.
 
 El motor **no conoce sockets ni timers**: `viewerId` solo sirve para etiquetar la vista; no
 cambia la lógica de juego.

@@ -24,3 +24,11 @@ Los archivos de texto usan finales de línea LF.
 - **Petición:** crear un documento que registre, tras cada petición, un resumen breve de la petición, de la solución/respuesta y de las tareas derivadas.
 - **Solución/respuesta:** se creó `docs/change-log.md` con esa plantilla y las dos entradas anteriores, y `AGENTS.md` con la regla para mantenerlo actualizado en futuras peticiones, usando LF y sin commits.
 - **Tareas derivadas:** Ninguna.
+
+## 2026-11-23 — Colocación de paredes con ratón, tablero mayor y color por jugador
+
+- **Petición:** hacer que las paredes se puedan colocar pasando el cursor entre casillas y haciendo click, sin activar modes ni rotar con teclas; ampliar el tablero y los canales; colorear cada pared con el color de quien la puso.
+- **Solución/respuesta:** `board.js` muestra todas las paredes legales H/V como pistas interactivas, elige la más cercana al cursor, previsualiza y coloca con un click; se eliminaron los botones «Pared» y «Rotar» y su estado en `ui.js`/`index.html`. `GameEngine` guarda `playerId` en cada pared, `Room` lo expone en `walls.H/V`, y `board.js` lo mapea al color del jugador para paredes y preview. CSS aumenta `--wall-thickness`, reduce márgenes verticales y ajusta `--board-available`. Se actualizaron `docs/rules.md`, `docs/network.md`, `docs/ui.md` y se añadió un test de regresión. `npm test` (39/39), `npm run check` y `node --check` de los JS modificados pasan.
+- **Tareas derivadas:**
+  - [ ] Probar en el navegador que el hover resalta la pista correcta y que un click coloca la pared sin teclas.
+  - [ ] Verificar en partida de dos navegadores que cada pared conserva el color de su autor tras varios turnos y reconnects.
