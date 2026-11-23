@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0F766E">
+  <title>Quoridor Arena</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body data-screen="home">
+  <a class="skip-link" href="#main-content">Saltar al contenido</a>
+
+  <div id="connection-banner" class="connection-banner" role="status" aria-live="polite" hidden>
+    <span id="connection-banner-text">Conectando…</span>
+  </div>
+
+  <div id="connection-overlay" class="connection-overlay" role="status" aria-live="polite" hidden>
+    <div class="connection-overlay__panel">
+      <span class="spinner" aria-hidden="true"></span>
+      <p id="connection-overlay-text">Reconectando… No cierres esta pestaña.</p>
+    </div>
+  </div>
+
+  <header class="site-header">
+    <button class="brand" type="button" data-nav="home" aria-label="Quoridor Arena, volver al inicio">
+      <span class="brand__mark" aria-hidden="true">Q</span>
+      <span class="brand__name">Quoridor Arena</span>
+    </button>
+    <p id="identity-summary" class="site-header__identity"></p>
+  </header>
+
+  <main id="main-content" class="app-main">
+    <section class="screen screen--home" data-screen="home" aria-labelledby="home-title">
+      <div class="home">
+        <section class="home__intro">
+          <p class="eyebrow">Juego de estrategia para 2–8</p>
+          <h1 id="home-title" class="home__title">Bloquea, salta y alcanza tu meta.</h1>
+          <p class="home__lead">Mueve tu ficha, levanta paredes y llega antes que nadie al lado que te ha tocado.</p>
+
+          <form id="alias-form" class="field alias-form" novalidate>
+            <label class="field__label" for="alias">Tu alias</label>
+            <input
+              id="alias"
+              class="field__input"
+              name="alias"
+              type="text"
+              inputmode="text"
+              autocomplete="nickname"
+              maxlength="16"
+              aria-describedby="alias-help alias-error"
+              required>
+            <p id="alias-help" class="field__help">2–16 caracteres. Letras, números, espacio, guion y guion bajo.</p>
+            <p id="alias-error" class="field__error" role="alert" hidden></p>
+          </form>
+
+          <div class="home__actions" role="group" aria-label="Acciones principales">
+            <button class="button button--primary" type="button" data-home-action="casual" disabled>
+              <span class="button__icon" aria-hidden="true">⚡</span>
+              <span>Partida casual</span>
+            </button>
+            <button class="button button--secondary" type="button" data-home-action="create" disabled>
+              <span class="button__icon" aria-hidden="true">＋</span>
+              <span>Crear partida</span>
+            </button>
+            <button class="button button--secondary" type="button" data-home-action="join" disabled>
+              <span class="button__icon" aria-hidden="true">→</span>
+              <span>Unirse a partida</span>
+            </button>
+            <button class="button button--ghost" type="button" data-home-action="local" disabled>
+              <span class="button__icon" aria-hidden="true">◍</span>
+              <span>Jugar en un mismo dispositivo</span>
+            </button>
+          </div>
+          <p id="home-connection-hint" class="field__help" role="status"></p>
+        </section>
+
+        <aside class="home__howto" aria-labelledby="howto-title">
+          <button id="howto-toggle" class="disclosure" type="button" aria-expanded="false" aria-controls="howto-panel">
+            <span id="howto-title">Cómo jugar</span>
+            <span class="disclosure__chevron" aria-hidden="true">⌄</span>
+          </button>
+          <div id="howto-panel" class="howto" hidden>
+            <section class="howto__section">
+              <h2>Objetivo</h2>
+              <p>Alcanza tu celda meta en el lado que te ha tocado antes que los demás jugadores.</p>
+            </section>
+            <section class="howto__section">
+              <h2>Turno</h2>
+              <p>En cada turno eliges una sola acción: mover tu ficha o colocar una pared.</p>
+            </section>
+            <section class="howto__section">
+              <h2>Movimiento y saltos</h2>
+              <p>Muévete en ortogonal a una celda libre. Si hay una ficha delante, puedes saltarla cuando la celda de detrás está libre.</p>
+            </section>
+            <section class="howto__section">
+              <h2>Paredes</h2>
+              <p>Bloquean el paso y no pueden dejar a un jugador activo sin camino a su meta. Puedes alternar orientación horizontal y vertical.</p>
+            </section>
+            <section class="howto__section">
+              <h2>Camping y tiempo</h2>
+              <p>No puedes quedarte quieto si estás sobre la meta de otro jugador. Cada turno dura 30 segundos y el servidor mueve por ti si se agota.</p>
+            </section>
+            <section class="howto__section">
+              <h2>Desconexiones</h2>
+              <p>Si te desconectas pasas a fantasma: tu celda deja de bloquear, tus paredes permanecen y puedes reconectar.</p>
+            </section>
+            <section class="howto__section">
+              <h2>Teclado</h2>
+              <p>Flechas para mover el foco, Enter o Espacio para actuar. Con el modo pared activo, R rota y Escape cancela.</p>
+            </section>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="screen screen--page" data-screen="create" aria-labelledby="create-title" hidden>
+      <div class="page-panel">
+        <header class="page-heading">
+          <p class="eyebrow">Nueva sala</p>
+          <h1 id="create-title">Crear partida</h1>
+          <p>Configura la partida y comparte el código con tus amigos cuando la sala esté creada.</p>
+        </header>
+
+        <form id="create-form" class="form-grid" novalidate>
+          <div class="field">
+            <label class="field__label" for="create-size">Tamaño del tablero</label>
+            <select id="create-size" class="field__input" name="size"></select>
+            <p class="field__help">Entre 8 × 8 y 20 × 20.</p>
+          </div>
+          <div class="field">
+            <label class="field__label" for="create-max-players">Jugadores máximos</label>
+            <select id="create-max-players" class="field__input" name="maxPlayers"></select>
+          </div>
+          <div class="field field--wide">
+            <label class="field__label" for="create-walls">
+              Paredes por jugador
+              <output id="create-walls-value" class="field__value" for="create-walls">10</output>
+            </label>
+            <input id="create-walls" class="field__range" type="range" name="wallsPerPlayer" min="0" max="20" step="1" value="10">
+            <p class="field__help">De 0 a 20 paredes por jugador.</p>
+          </div>
+          <div class="field">
+            <label class="field__label" for="create-spawn">Modo de aparición</label>
+            <select id="create-spawn" class="field__input" name="spawnMode">
+              <option value="random">Aleatorio</option>
+              <option value="central">Central</option>
+              <option value="perimeter">Perímetro</option>
+            </select>
+          </div>
+          <div class="field">
+            <span class="field__label">Temporizador</span>
+            <p class="field__readonly">30 segundos por turno</p>
+          </div>
+          <p id="create-summary" class="config-summary field--wide" aria-live="polite"></p>
+          <p id="create-error" class="field__error field--wide" role="alert" hidden></p>
+          <div class="form-actions field--wide">
+            <button class="button button--ghost" type="button" data-nav="home">Volver</button>
+            <button id="create-reset" class="button button--secondary" type="button">Restablecer</button>
+            <button id="create-submit" class="button button--primary" type="submit">Crear sala</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section class="screen screen--page" data-screen="join" aria-labelledby="join-title" hidden>
+      <div class="page-panel page-panel--narrow">
+        <header class="page-heading">
+          <p class="eyebrow">Invitación</p>
+          <h1 id="join-title">Unirse a partida</h1>
+          <p>Introduce el código de 6 caracteres que te ha compartido el host.</p>
+        </header>
+
+        <form id="join-form" class="form-grid" novalidate>
+          <div class="field field--wide">
+            <label class="field__label" for="room-code">Código de sala</label>
+            <div class="code-form__row">
+              <input
+                id="room-code"
+                class="field__input field__input--code"
+                name="code"
+                type="text"
+                inputmode="text"
+                autocomplete="off"
+                autocapitalize="characters"
+                spellcheck="false"
+                maxlength="12"
+                placeholder="AB12CD"
+                aria-describedby="room-code-help room-code-error">
+              <button id="paste-code" class="button button--secondary" type="button">Pegar</button>
+            </div>
+            <p id="room-code-help" class="field__help">6 caracteres. No se usan 0, O, 1, I ni L.</p>
+            <p id="room-code-error" class="field__error" role="alert" hidden></p>
+          </div>
+          <p id="join-error" class="field__error field--wide" role="alert" hidden></p>
+          <div class="form-actions field--wide">
+            <button class="button button--ghost" type="button" data-nav="home">Volver</button>
+            <button id="join-submit" class="button button--primary" type="submit">Unirse</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section class="screen screen--page" data-screen="local" aria-labelledby="local-title" hidden>
+      <div class="page-panel">
+        <header class="page-heading">
+          <p class="eyebrow">Pass and play</p>
+          <h1 id="local-title">Jugar en un mismo dispositivo</h1>
+          <p>Configura los jugadores. La pantalla de turno ocultará el tablero entre jugador y jugador.</p>
+        </header>
+
+        <form id="local-form" class="form-grid" novalidate>
+          <div class="field">
+            <label class="field__label" for="local-size">Tamaño del tablero</label>
+            <select id="local-size" class="field__input" name="size"></select>
+          </div>
+          <div class="field">
+            <label class="field__label" for="local-player-count">Número de jugadores</label>
+            <select id="local-player-count" class="field__input" name="playerCount"></select>
+          </div>
+          <div class="field field--wide">
+            <label class="field__label" for="local-walls">
+              Paredes por jugador
+              <output id="local-walls-value" class="field__value" for="local-walls">10</output>
+            </label>
+            <input id="local-walls" class="field__range" type="range" name="wallsPerPlayer" min="0" max="20" step="1" value="10">
+          </div>
+          <div class="field">
+            <label class="field__label" for="local-spawn">Modo de aparición</label>
+            <select id="local-spawn" class="field__input" name="spawnMode">
+              <option value="random">Aleatorio</option>
+              <option value="central">Central</option>
+              <option value="perimeter">Perímetro</option>
+            </select>
+          </div>
+
+          <fieldset class="players-setup field--wide">
+            <legend>Jugadores y colores</legend>
+            <div id="local-players" class="players-setup__list"></div>
+          </fieldset>
+
+          <p id="local-summary" class="config-summary field--wide" aria-live="polite"></p>
+          <p id="local-error" class="field__error field--wide" role="alert" hidden></p>
+          <div class="form-actions field--wide">
+            <button class="button button--ghost" type="button" data-nav="home">Volver</button>
+            <button id="local-reset" class="button button--secondary" type="button">Restablecer</button>
+            <button id="local-submit" class="button button--primary" type="submit">Empezar</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section class="screen screen--page" data-screen="queue" aria-labelledby="queue-title" hidden>
+      <div class="page-panel page-panel--narrow queue-panel">
+        <p class="eyebrow">Matchmaking</p>
+        <h1 id="queue-title">Buscando partida</h1>
+        <div class="queue-panel__indicator" aria-hidden="true"><span class="spinner"></span></div>
+        <p id="queue-status" class="queue-panel__status" role="status" aria-live="polite">Buscando jugadores…</p>
+        <p id="queue-detail" class="field__help"></p>
+        <p id="queue-error" class="field__error" role="alert" hidden></p>
+        <div class="form-actions form-actions--center">
+          <button id="queue-cancel" class="button button--danger" type="button">Cancelar búsqueda</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen screen--page" data-screen="lobby" aria-labelledby="lobby-title" hidden>
+      <div class="lobby-layout">
+        <section class="page-panel">
+          <p class="eyebrow">Sala de espera</p>
+          <div class="lobby-code-row">
+            <h1 id="lobby-title" class="lobby-code" aria-label="Código de sala">------</h1>
+            <button id="copy-code" class="button button--secondary" type="button">Copiar código</button>
+          </div>
+          <p id="lobby-status" class="status-text" role="status" aria-live="polite"></p>
+          <h2 class="players__title">Jugadores <span id="lobby-player-count" class="badge">0/0</span></h2>
+          <ul id="lobby-players" class="players-list"></ul>
+          <p id="lobby-error" class="field__error" role="alert" hidden></p>
+          <div class="lobby-actions">
+            <button id="lobby-leave" class="button button--danger" type="button">Salir de la sala</button>
+            <button id="lobby-start" class="button button--primary" type="button" disabled>Empezar partida</button>
+          </div>
+          <p id="lobby-start-hint" class="field__help"></p>
+        </section>
+
+        <section class="page-panel" aria-labelledby="lobby-config-title">
+          <h2 id="lobby-config-title">Configuración</h2>
+          <p id="lobby-config-note" class="field__help"></p>
+          <form id="lobby-config-form" class="form-grid" novalidate>
+            <div class="field">
+              <label class="field__label" for="lobby-size">Tamaño del tablero</label>
+              <select id="lobby-size" class="field__input" name="size"></select>
+            </div>
+            <div class="field">
+              <label class="field__label" for="lobby-max-players">Jugadores máximos</label>
+              <select id="lobby-max-players" class="field__input" name="maxPlayers"></select>
+            </div>
+            <div class="field field--wide">
+              <label class="field__label" for="lobby-walls">
+                Paredes por jugador
+                <output id="lobby-walls-value" class="field__value" for="lobby-walls">10</output>
+              </label>
+              <input id="lobby-walls" class="field__range" type="range" name="wallsPerPlayer" min="0" max="20" step="1" value="10">
+            </div>
+            <div class="field">
+              <label class="field__label" for="lobby-spawn">Modo de aparición</label>
+              <select id="lobby-spawn" class="field__input" name="spawnMode">
+                <option value="random">Aleatorio</option>
+                <option value="central">Central</option>
+                <option value="perimeter">Perímetro</option>
+              </select>
+            </div>
+            <div class="field">
+              <span class="field__label">Temporizador</span>
+              <p class="field__readonly">30 segundos por turno</p>
+            </div>
+            <p id="lobby-config-summary" class="config-summary field--wide"></p>
+            <div class="form-actions field--wide">
+              <button id="lobby-reset" class="button button--secondary" type="button">Restablecer</button>
+            </div>
+          </form>
+        </section>
+      </div>
+    </section>
+
+    <section class="screen screen--game" data-screen="game" aria-labelledby="game-title" hidden>
+      <h1 id="game-title" class="sr-only">Partida en curso</h1>
+      <div class="game-layout">
+        <header class="game-header" aria-label="Información de la partida">
+          <div class="game-header__room">
+            <span class="game-header__label">Sala</span>
+            <strong id="game-room-code" class="room-code">------</strong>
+            <button id="game-copy-code" class="button button--ghost button--compact" type="button">Copiar</button>
+          </div>
+          <p id="game-status" class="game-header__status" aria-live="polite">
+            <span id="game-connection-dot" class="connection-dot" aria-hidden="true"></span>
+            <span id="game-status-text">Preparando la partida…</span>
+          </p>
+          <button id="players-drawer-toggle" class="button button--secondary button--compact" type="button" aria-expanded="false" aria-controls="game-aside">
+            Jugadores
+          </button>
+        </header>
+
+        <main id="game-main" class="game-main" aria-label="Tablero de juego">
+          <div id="board-frame" class="board-frame"></div>
+          <div id="game-message" class="game-message" role="status" hidden></div>
+        </main>
+
+        <div id="aside-backdrop" class="aside-backdrop" hidden></div>
+        <aside id="game-aside" class="game-aside" aria-labelledby="players-panel-title">
+          <div class="game-aside__header">
+            <h2 id="players-panel-title">Jugadores</h2>
+            <button id="close-aside" class="icon-button" type="button" aria-label="Cerrar panel de jugadores">×</button>
+          </div>
+          <div id="game-players" class="player-cards"></div>
+          <button id="leave-game" class="button button--danger game-aside__leave" type="button">Salir de la partida</button>
+        </aside>
+
+        <footer class="game-footer" aria-label="Tu jugador">
+          <section class="self-card" id="self-card">
+            <span id="self-avatar" class="avatar avatar--lg" aria-hidden="true">?</span>
+            <div class="self-card__info">
+              <p id="self-name" class="self-card__name">Espectador</p>
+              <p id="self-meta" class="self-card__meta">Esperando…</p>
+            </div>
+            <div class="self-card__stats">
+              <span class="self-card__walls" id="self-walls">— paredes</span>
+              <span class="self-card__goal" id="self-goal">Meta —</span>
+            </div>
+          </section>
+
+          <section class="game-actions" aria-label="Acciones de juego">
+            <button id="wall-toggle" class="button button--secondary" type="button" aria-pressed="false" disabled>
+              <span class="button__icon" aria-hidden="true">▭</span>
+              <span>Pared <span id="wall-orientation">(H)</span></span>
+            </button>
+            <button id="wall-rotate" class="button button--ghost" type="button" disabled>Rotar (R)</button>
+            <button id="game-leave-inline" class="button button--danger button--compact" type="button">Salir</button>
+          </section>
+
+          <section class="timer" id="game-timer" aria-labelledby="timer-label">
+            <p id="timer-label" class="timer__label">Tiempo</p>
+            <p class="timer__display"><span id="timer-value">30</span><span class="timer__unit">s</span></p>
+            <div class="timebar" role="progressbar" aria-valuemin="0" aria-valuemax="30" aria-valuenow="30" aria-valuetext="30 segundos">
+              <span id="timer-fill" class="timebar__fill"></span>
+            </div>
+          </section>
+
+          <section class="game-access" aria-label="Accesibilidad">
+            <button id="patterns-toggle" class="button button--ghost button--compact" type="button" aria-pressed="false">Patrones</button>
+            <button id="contrast-toggle" class="button button--ghost button--compact" type="button" aria-pressed="false">Alto contraste</button>
+            <button id="fullscreen-toggle" class="button button--ghost button--compact" type="button">Pantalla completa</button>
+            <button id="game-howto" class="button button--ghost button--compact" type="button">Cómo jugar</button>
+          </section>
+        </footer>
+      </div>
+    </section>
+
+    <section class="screen screen--page" data-screen="gameover" aria-labelledby="gameover-title" hidden>
+      <div class="page-panel gameover">
+        <p class="eyebrow">Resultado</p>
+        <h1 id="gameover-title" tabindex="-1">Fin de la partida</h1>
+        <p id="gameover-announcement" class="sr-only" aria-live="assertive"></p>
+        <div class="winner-card">
+          <span id="gameover-avatar" class="avatar avatar--xl" aria-hidden="true">?</span>
+          <div>
+            <p class="winner-card__label">Ganador</p>
+            <p id="gameover-winner-name" class="winner-card__name">—</p>
+            <p id="gameover-reason" class="winner-card__reason">—</p>
+          </div>
+        </div>
+        <h2>Resumen</h2>
+        <div class="summary-table-wrap">
+          <table class="summary-table">
+            <thead>
+              <tr>
+                <th scope="col">Jugador</th>
+                <th scope="col">Paredes</th>
+                <th scope="col">Estado</th>
+                <th scope="col">Meta</th>
+              </tr>
+            </thead>
+            <tbody id="gameover-players"></tbody>
+          </table>
+        </div>
+        <p id="gameover-error" class="field__error" role="alert" hidden></p>
+        <div class="form-actions form-actions--center">
+          <button id="gameover-rematch" class="button button--primary" type="button">Revancha</button>
+          <button id="gameover-leave" class="button button--secondary" type="button">Salir al inicio</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>Quoridor Arena · Cliente web sin frameworks · El servidor es la autoridad de la partida.</p>
+  </footer>
+
+  <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="false"></div>
+  <div id="modal-root"></div>
+  <div id="overlay-root"></div>
+
+  <script type="module" src="/js/main.js"></script>
+</body>
+</html>

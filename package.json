@@ -1,0 +1,20 @@
+{
+  "name": "quoridor-arena",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Juego web multijugador inspirado en Quoridor (2-8 jugadores, tableros 8x8 a 20x20)",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "test": "node --test tests/core.test.js tests/server.test.js",
+    "check": "node --check server/index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
