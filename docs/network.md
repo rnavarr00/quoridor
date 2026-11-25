@@ -948,7 +948,7 @@ En el segundo turno inválido acumulado se envía además `server.toast` y `serv
 | `players[].name` | string | Alias efectivo (con sufijo si hubo colisión). |
 | `players[].colorIndex` | 0..7 | Asiento/color; congelado al iniciar. |
 | `players[].pos` | `{x,y}` | Posición actual o última posición conocida si es fantasma. |
-| `players[].goal` | `{side,index}` | Meta: lado (`top`/`bottom`/`left`/`right`) e índice de fila/columna. |
+| `players[].goal` | `{side,index,x,y}` | Meta: lado (`top`/`bottom`/`left`/`right`) o `any` si es interior; `index` de fila/columna y coordenadas `x`/`y` de la celda. |
 | `players[].spawn` | `{x,y}` | Celda de origen asignada por el motor. |
 | `players[].wallsLeft` | entero | Paredes restantes. Los fantasmas conservan las ya colocadas y su contador. |
 | `players[].ghost` | boolean | `true` si está desconectado, salió o fue marcado AFK. |
@@ -970,7 +970,7 @@ En el segundo turno inválido acumulado se envía además `server.toast` y `serv
 - Pared horizontal `H` en ancla `(x,y)`: bloquea el paso entre `(x,y)` y `(x,y+1)`. Válida para `x` 0..size-2, `y` 0..size-2.
 - Pared vertical `V` en ancla `(x,y)`: bloquea el paso entre `(x,y)` y `(x+1,y)`. Válida para `x` 0..size-2, `y` 0..size-2.
 - Una `H` y una `V` en la misma ancla pueden cruzarse; solo se considera solapamiento si coinciden orientación y ancla.
-- Meta: `top` = fila 0, `bottom` = fila size-1, `left` = columna 0, `right` = columna size-1. `index` repite el valor de fila/columna de la meta.
+- Meta: `top` = fila 0, `bottom` = fila size-1, `left` = columna 0, `right` = columna size-1. `index` repite el valor de fila/columna de la meta. Si la meta no está en un borde, `side = any`, `index = 0` y `x`/`y` identifican la celda interior.
 
 ### 6.4 Qué NO se envía
 

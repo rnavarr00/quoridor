@@ -90,7 +90,7 @@ Cada pantalla mantiene un estado de vista mínimo y serializable:
 | `room` | snapshot público o `null` | Lobby/sala. |
 | `game` | snapshot público o estado local | Partida. |
 | `pending` | `null` o `{ action, requestId, since }` | Evita duplicados. |
-| `overlay` | `none`, `handoff`, `reconnecting`, `spectator`, `waiting` | Capa modal/estado. |
+| `overlay` | `none`, `reconnecting`, `spectator`, `waiting` | Capa modal/estado. |
 | `prefs` | alias, patrones, alto contraste, sonido | Persistencia local segura. |
 
 No se persisten snapshots de partida en `localStorage`. Solo alias, identidad de sesión, preferencias y, como máximo, el código de sala para reconexión.
@@ -228,7 +228,7 @@ Reconexión (en cualquier pantalla de sala):
 - **Botón atrás:**
   - En `home`, `create`, `join`, `local`, `queue`: comportamiento normal (v1).
   - En `lobby`: **Fuera de v1**; interceptar `popstate`, abrir confirmación “¿Salir de la sala?” y, si se confirma, enviar `client.leaveRoom`.
-  - En `game`/`local`-handoff: **Fuera de v1**; interceptar, abrir confirmación “¿Abandonar la partida?”; en online enviar `client.leaveGame` (el jugador pasa a fantasma) y quedarse en modo espectador; en local volver a `local`.
+  - En `game`/`local`: **Fuera de v1**; interceptar, abrir confirmación “¿Abandonar la partida?”; en online enviar `client.leaveGame` (el jugador pasa a fantasma) y quedarse en modo espectador; en local volver a `local`.
   - En `gameover`: **Fuera de v1**; permitir volver a `lobby` solo con `client.rematch`; “Salir al inicio” usa `client.leaveRoom`.
 - **Recarga:**
   1. Leer alias, `playerId`, `sessionToken` y preferencias persistidas.
@@ -363,7 +363,7 @@ Contenido mínimo:
 
 | Bloque | Resumen |
 |---|---|
-| Objetivo | Alcanzar tu celda meta asignada en el lado correspondiente antes que los demás. |
+| Objetivo | Alcanzar tu celda meta asignada antes que los demás; puede estar en cualquier casilla, también en el interior del tablero. |
 | Turno | En cada turno se elige **una** acción: mover la ficha o colocar una pared. |
 | Movimiento | Movimiento ortogonal a una celda adyacente libre. |
 | Saltos | Si hay una ficha adyacente, se puede saltar si la celda de detrás está libre; las reglas completas están en `docs/rules.md`. |
@@ -601,27 +601,16 @@ Normalización:
 Estados internos:
 
 1. `setup`: configuración y jugadores.
-2. `handoff`: pantalla de privacidad “Turno de `<nombre>`”.
-3. `playing`: tablero visible y acciones del jugador del turno.
-4. `gameover`: resultado local.
+2. `playing`: tablero visible y acciones del jugador del turno; el jugador activo se indica con `isTurn`.
+3. `gameover`: resultado local.
 
-Reglas de privacidad:
+Reglas de flujo:
 
-- Al iniciar la partida y **cada vez que cambia el turno**, mostrar una pantalla opaca a pantalla completa:
-  - Título “Turno de `<nombre>`”.
-  - Color/avatar del jugador.
-  - Texto “Pasa el dispositivo a este jugador”.
-  - Botón “Continuar” (primario).
-  - Botón “Abandonar” (texto/terciario) con confirmación.
-- Mientras `handoff` está activo:
-  - El tablero queda `inert`, `aria-hidden="true"` y visualmente cubierto; no se puede espiar con scroll ni teclado.
-  - No se anuncian movimientos, paredes ni el estado del tablero a lectores de pantalla.
-  - El temporizador local, si está activado, se pausa.
-- “Continuar”:
-  - Oculta la capa, quita `inert`, mueve el foco al tablero y anuncia “Turno de `<nombre>`. Elige movimiento o pared.”
-  - No envía ninguna acción; solo revela el estado.
-- No mostrar automáticamente el tablero al terminar una acción: primero `handoff` del siguiente jugador.
-- Abandonar: confirmación “¿Abandonar la partida local? Se perderá el progreso.”; volver a `setup`.
+- Al iniciar la partida y **cada vez que cambia el turno**, renderizar el tablero de inmediato con el jugador activo, mover el foco al tablero y anunciar “Turno de `<nombre>`. Elige movimiento o pared.” de forma no insistente.
+- No mostrar pantallas de confirmación ni ocultar el tablero entre jugadores: la capa opaca y el botón “Continuar” se eliminan.
+- Al terminar una acción válida, pasar directamente al turno siguiente; el temporizador local se reinicia para cada turno.
+- El temporizador agotado ejecuta `engine.autoMove(turnPlayerId)` y continúa con el mismo flujo inmediato.
+- Salir desde los controles de la partida mantiene la confirmación “¿Seguro que quieres salir de la partida? Esta acción no se puede deshacer.” y vuelve a `setup`.
 
 ### 6.3 Uso del motor local y renderizador
 
@@ -629,9 +618,9 @@ Reglas de privacidad:
 - No duplicar reglas en la UI: para movimientos y paredes legales se usan las funciones del core.
 - La UI mantiene un snapshot local equivalente al público; el renderizador es el **mismo** componente que en online.
 - No hay `server.tick`, `server.gameState` ni reconexión.
-- Temporizador local opcional:
-  - Desactivado por defecto para evitar penalizar el paso del dispositivo.
-  - Si se activa, es informativo y se pausa en `handoff`; no expulsa ni mueve automáticamente.
+- Temporizador local de 30 segundos:
+  - Se reinicia al comenzar cada turno y no se pausa.
+  - Al agotarse ejecuta `engine.autoMove(turnPlayerId)`; no expulsa a nadie.
 - Al terminar, `gameover` local con ganador, motivo “meta” y resumen; “Revancha” reinicia la misma configuración y “Salir” vuelve a `setup`.
 - Los toasts locales usan el mismo componente, sin `aria-live` agresivo.
 - La pantalla debe ser operable solo con teclado y con lector de pantalla.
@@ -811,7 +800,7 @@ Debe mostrar, sin scroll en 1366 × 768:
 
 #### 7.4.3 Objetivos, fichas, spawns y fantasmas
 
-- **Objetivo/meta:** banda interior en el lado correspondiente (`top`/`bottom`/`left`/`right`) con el color del jugador, margen interno de 4–6 px. No usar solo un borde exterior.
+- **Objetivo/meta:** banda interior en el lado correspondiente (`top`/`bottom`/`left`/`right`) o borde discontinuo para metas interiores (`center`), siempre con el color del jugador y margen interno de 4–6 px. No usar solo un borde exterior.
 - **Ficha:** disco del color del jugador, inicial del nombre en blanco, sombra sutil, tamaño ~70 % de la celda.
 - **Spawn:** pequeño anillo o marca discreta del color del jugador en la celda de origen; opcional, no debe confundirse con la meta.
 - **Fantasma:** opacidad 0.45, patrón diagonal, borde discontinuo, filtro de saturación reducido y badge “Fantasma” en el panel. La celda sigue siendo transitable; el `aria-label` indica “fantasma, celda transitable”.
@@ -1766,8 +1755,8 @@ Notas:
 - [ ] Unirse: errores `ROOM_NOT_FOUND`, `ROOM_FULL` y `GAME_ALREADY_STARTED` (mapeado de `GAME_STARTED`) muestran mensajes claros.
 - [ ] Unirse: timeout no reenvía a ciegas; el reintento es manual y no duplica la entrada.
 - [ ] Local: selector exacto 2–8, nombres/colores editables sin duplicados, reset local.
-- [ ] Local: la pantalla “Turno de `<nombre>`” oculta el tablero, bloquea foco y “Continuar” lo revela.
-- [ ] Local: abandonar pide confirmación y vuelve a la configuración; revancha funciona.
+- [ ] Local: el tablero pasa al siguiente jugador sin pantalla de turno; foco, anuncio y temporizador se reinician.
+- [ ] Local: salir de la partida pide confirmación y vuelve a la configuración; revancha funciona.
 - [ ] Partida 2 jugadores / tablero 8: layout, turnos, metas y paredes correctos.
 - [ ] Partida 8 jugadores / tablero 20: panel con scroll, fichas legibles y sin solapamientos.
 - [ ] Tablero: `size * 2 + 1` pistas con canal de pared inicial y final, celdas en pistas pares, anclas en impares, celdas cuadradas, gap, metas con banda de color y fichas con inicial.

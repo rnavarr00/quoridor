@@ -137,9 +137,12 @@ function candidatesAtDistance(spawn, distance, size, spawnSet) {
   return cells;
 }
 
-function assignGoals(spawns, distance, size, nodeBudget) {
+function assignGoals(spawns, distance, size, nodeBudget, rng) {
   const spawnSet = new Set(spawns.map(cellKey));
-  const candidates = spawns.map((spawn) => candidatesAtDistance(spawn, distance, size, spawnSet));
+  const candidates = spawns.map((spawn) => {
+    const options = candidatesAtDistance(spawn, distance, size, spawnSet);
+    return sampleWithoutReplacement(options, options.length, rng);
+  });
   if (candidates.some((list) => list.length === 0)) return null;
 
   const goals = new Array(spawns.length).fill(null);
@@ -223,7 +226,7 @@ export function generateSpawnsAndGoals(options = {}) {
     invariant(spawns.every((spawn) => inBounds(spawn, size)), 'spawn out of bounds');
 
     for (const distance of distanceOrder) {
-      const goals = assignGoals(spawns, distance, size, nodeBudget);
+      const goals = assignGoals(spawns, distance, size, nodeBudget, rng);
       if (!goals) continue;
 
       const spawnSet = new Set(spawns.map(cellKey));

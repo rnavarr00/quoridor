@@ -212,7 +212,7 @@ interface PlayerState {
   name: string;
   colorIndex: number;      // orden de asiento / color, 0..playerCount-1
   spawn: Cell;             // celda inicial
-  goal: Cell;              // meta propia (lado opuesto a spawn)
+  goal: Cell;              // meta propia asignada a igual distancia Manhattan del spawn
   pos: Cell;               // posicion actual
   wallsLeft: number;       // paredes restantes
   ghost: boolean;          // true = desconectado / transitable

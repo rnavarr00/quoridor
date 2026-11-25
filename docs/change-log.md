@@ -32,3 +32,19 @@ Los archivos de texto usan finales de línea LF.
 - **Tareas derivadas:**
   - [ ] Probar en el navegador que el hover resalta la pista correcta y que un click coloca la pared sin teclas.
   - [ ] Verificar en partida de dos navegadores que cada pared conserva el color de su autor tras varios turnos y reconnects.
+
+## 2026-11-24 — Turnos locales sin confirmación
+
+- **Petición:** quitar la confirmación entre turnos de las partidas jugadas en un único dispositivo, incluida la inicial, para dar más ritmo a la partida.
+- **Solución/respuesta:** `main.js` sustituye `showLocalTurn()` por `beginLocalTurn()`, que muestra el tablero del jugador activo, mueve el foco, anuncia el turno y reinicia el temporizador sin capas modales. `ui.js` elimina `showHandoff()`/`hideHandoff()` y su estado; se retiran los estilos `.handoff*` y se actualizan `index.html` y `docs/ui.md`. La confirmación al salir de la partida se mantiene y el modo online queda intacto. `npm test` (39/39), `npm run check` y `node --check` de los JS modificados pasan.
+- **Tareas derivadas:**
+  - [ ] Probar en el navegador que el tablero aparece al empezar y tras cada movimiento o pared, sin overlay ni foco bloqueado.
+  - [ ] Comprobar que el temporizador se reinicia por turno, que el auto-move continúa sin confirmación y que game over y revancha siguen funcionando.
+
+## 2026-11-24 — Metas repartidas por el tablero
+
+- **Petición:** eliminar el sesgo que hacía aparecer siempre las casillas objetivo en la parte superior del tablero, manteniendo que todos los jugadores tengan su meta a la misma distancia de su spawn y que ninguna meta se repita.
+- **Solución/respuesta:** `assignGoals()` en `spawn.js` recibe el mismo `rng` del generador y baraja con Fisher-Yates los candidatos a distancia Manhattan antes del backtracking; se conservan unicidad, equidistancia, exclusión de spawns, modos de spawn y determinismo por semilla. `ui.js` usa `goalSideLabel()` para etiquetar metas interiores y `styles.css` añade `.board__goal-marker--center`. Se actualizaron `spawns.md`, `network.md`, `ui.md` y `rules.md`, y se añadió un test de distribución con 200 semillas. `npm test` (40/40), `npm run check` y `node --check` de los JS modificados pasan.
+- **Tareas derivadas:**
+  - [ ] Probar en el navegador que las metas aparecen repartidas entre bordes e interior y que una meta interior muestra sus coordenadas y marcador discontinuo.
+  - [ ] Verificar en online con la misma semilla que dos jugadores reciben exactamente los mismos spawns y goals.

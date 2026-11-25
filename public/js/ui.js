@@ -3,10 +3,8 @@ import {
   app,
   configSummary,
   CREATE_DEFAULT_CONFIG,
-  GOAL_SIDE_LABELS,
-  goalSideFromCell,
+  goalSideLabel,
   LOCAL_DEFAULT_CONFIG,
-  normalizeGoalCell,
   normalizeRoomCode,
   playerInitial,
   colorVar,
@@ -91,7 +89,6 @@ class UI {
     this.visibleToasts = [];
     this.toastDedupe = new Map();
     this.modal = null;
-    this.handoff = null;
     this.roomSnapshot = null;
   }
 
@@ -817,9 +814,7 @@ class UI {
     }
     this.el.selfWalls.textContent = `${Number(myPlayer.wallsLeft) || 0} paredes`;
     const size = view.board?.size || view.config?.size || 9;
-    const goalCell = normalizeGoalCell(myPlayer.goal, size);
-    const side = goalSideFromCell(goalCell, size);
-    this.el.selfGoal.textContent = side ? `Meta: ${GOAL_SIDE_LABELS[side]}` : 'Meta —';
+    this.el.selfGoal.textContent = goalSideLabel(myPlayer.goal, size);
     this.el.selfAvatar.classList.toggle('avatar--ghost', myPlayer.ghost);
   }
 
@@ -937,9 +932,7 @@ class UI {
       const wallsCell = create('td', '', String(Number(player.wallsLeft) || 0));
       const statusCell = create('td', '', player.ghost ? 'Fantasma' : 'Activo');
       const size = state.board?.size || state.config?.size || 9;
-      const goalCell = normalizeGoalCell(player.goal, size);
-      const side = goalSideFromCell(goalCell, size);
-      const goalCellEl = create('td', '', side ? GOAL_SIDE_LABELS[side] : '—');
+      const goalCellEl = create('td', '', goalSideLabel(player.goal, size).replace(/^Meta: /, ''));
       row.append(nameCell, wallsCell, statusCell, goalCellEl);
       fragment.appendChild(row);
     }
@@ -1074,67 +1067,6 @@ class UI {
     this.el.asideBackdrop.hidden = true;
     this.el.playersDrawerToggle?.setAttribute('aria-expanded', 'false');
     if (restoreFocus) this.el.playersDrawerToggle?.focus();
-  }
-
-  showHandoff(player, { onContinue, onAbandon } = {}) {
-    this.hideHandoff();
-    this.el.gameMain.inert = true;
-    this.el.gameMain.setAttribute('aria-hidden', 'true');
-    this.closeAside(false);
-    const overlay = create('div', 'handoff');
-    overlay.setAttribute('role', 'dialog');
-    overlay.setAttribute('aria-modal', 'true');
-    overlay.setAttribute('aria-labelledby', 'handoff-title');
-    const panel = create('div', 'handoff__panel');
-    const avatar = create('span', 'avatar avatar--xl', playerInitial(player.name));
-    avatar.style.setProperty('--player-color', colorVar(player.colorIndex));
-    avatar.setAttribute('aria-hidden', 'true');
-    const title = create('h2', 'handoff__title', `Turno de ${player.name}`);
-    title.id = 'handoff-title';
-    const description = create('p', 'handoff__text', 'Pasa el dispositivo a este jugador. El tablero permanecerá oculto hasta que pulse Continuar.');
-    const actions = create('div', 'form-actions form-actions--center');
-    const continueButton = create('button', 'button button--primary', 'Continuar');
-    continueButton.type = 'button';
-    const abandonButton = create('button', 'button button--ghost', 'Abandonar');
-    abandonButton.type = 'button';
-    actions.append(continueButton, abandonButton);
-    panel.append(avatar, title, description, actions);
-    overlay.appendChild(panel);
-    this.el.overlayRoot.appendChild(overlay);
-    this.handoff = overlay;
-    continueButton.focus();
-
-    const close = () => this.hideHandoff();
-    continueButton.addEventListener('click', () => {
-      close();
-      onContinue?.();
-    });
-    abandonButton.addEventListener('click', () => {
-      onAbandon?.();
-    });
-    overlay.addEventListener('keydown', (event) => {
-      if (event.key !== 'Tab') return;
-      const focusables = focusableElements(overlay);
-      if (!focusables.length) return;
-      const first = focusables[0];
-      const last = focusables[focusables.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    });
-    this.announce(`Turno de ${player.name}. Pasa el dispositivo.`, true);
-  }
-
-  hideHandoff() {
-    if (!this.handoff) return;
-    this.handoff.remove();
-    this.handoff = null;
-    this.el.gameMain.inert = false;
-    this.el.gameMain.removeAttribute('aria-hidden');
   }
 
   setLocalPlayers(names) {
@@ -1641,7 +1573,6 @@ class UI {
 
   destroy() {
     this.stopTimer();
-    this.hideHandoff();
     this.closeModal(false);
     this.board?.destroy();
     this.board = null;

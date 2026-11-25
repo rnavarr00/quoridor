@@ -98,7 +98,7 @@ function startLocalTimer() {
     if (!playerId) return;
     const result = engine.autoMove(playerId);
     if (!result.ok) {
-      showLocalTurn();
+      beginLocalTurn();
       return;
     }
     completeLocalAction();
@@ -140,12 +140,10 @@ function resetOnlineView() {
   app.gameOver = null;
   app.queue = null;
   app.mode = null;
-  ui.hideHandoff();
 }
 
 function abandonLocal() {
   stopLocalTimer();
-  ui.hideHandoff();
   clearPending();
   app.local = null;
   app.game = null;
@@ -157,24 +155,17 @@ function abandonLocal() {
   showScreen('local');
 }
 
-function showLocalTurn() {
-  stopLocalTimer();
-  ui.setTimerStatic('—');
+function beginLocalTurn() {
   const engine = app.local?.engine;
   if (!engine) return;
   const state = engine.getState();
+  if (state.status !== 'playing') return;
   const current = state.players.find((player) => player.id === state.turnPlayerId) || state.players[0];
   if (!current) return;
-  ui.showHandoff(
-    { name: current.name, colorIndex: current.colorIndex },
-    {
-      onContinue: () => {
-        renderGame(localView(engine), { myId: current.id, roomCode: 'LOCAL' });
-        startLocalTimer();
-      },
-      onAbandon: () => abandonLocal(),
-    },
-  );
+  renderGame(localView(engine, LOCAL_TURN_SECONDS), { myId: current.id, roomCode: 'LOCAL' });
+  ui.board?.focusBoard();
+  ui.announce(`Turno de ${current.name}. Elige movimiento o pared.`);
+  startLocalTimer();
 }
 
 function completeLocalAction() {
@@ -182,11 +173,11 @@ function completeLocalAction() {
   if (!engine) return;
   const state = engine.getState();
   const view = localView(engine, state.status === 'finished' ? 0 : LOCAL_TURN_SECONDS);
-  renderGame(view, { myId: state.turnPlayerId, roomCode: 'LOCAL', canAct: false });
   if (state.status !== 'finished') {
-    showLocalTurn();
+    beginLocalTurn();
     return;
   }
+  renderGame(view, { myId: state.turnPlayerId, roomCode: 'LOCAL', canAct: false });
   const winner = state.players.find((player) => player.id === state.winnerId) || null;
   const payload = {
     roomCode: 'LOCAL',
@@ -205,7 +196,6 @@ function completeLocalAction() {
 
 function startLocalGame(setup) {
   stopLocalTimer();
-  ui.hideHandoff();
   clearPending();
   const players = setup.players.map((player) => ({
     id: player.id,
@@ -233,7 +223,7 @@ function startLocalGame(setup) {
   app.local = { setup, engine };
   ui.setLocalPlayers(setup.players.map((player) => player.name));
   ui.setLocalError(null);
-  showLocalTurn();
+  beginLocalTurn();
 }
 
 function leaveCurrentRoom() {
@@ -270,7 +260,6 @@ ui.init({
     if (target !== 'home') return;
     if (app.mode === 'local') {
       stopLocalTimer();
-      ui.hideHandoff();
       resetOnlineView();
       showScreen('home');
       return;

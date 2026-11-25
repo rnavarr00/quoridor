@@ -1453,6 +1453,10 @@ body[data-screen="game"] .app-main {
   border-inline-end-width: 6px;
 }
 
+.board__goal-marker--center {
+  border-style: dashed;
+}
+
 .board__spawn-marker {
   position: absolute;
   inset-block-end: 9%;
@@ -2021,7 +2025,7 @@ body[data-screen="game"] .app-main {
 }
 
 /* --------------------------------------------------------------------------
-   15. Modales, handoff, toasts y avisos
+   15. Modales, toasts y avisos
    -------------------------------------------------------------------------- */
 .modal {
   position: fixed;
@@ -2094,39 +2098,6 @@ body[data-screen="game"] .app-main {
     opacity: 1;
     transform: translateY(0) scale(1);
   }
-}
-
-/* Pass-and-play: pantalla de cambio de turno */
-.handoff {
-  position: fixed;
-  inset: 0;
-  z-index: var(--z-modal);
-  display: grid;
-  place-items: center;
-  padding: var(--space-4);
-  background: var(--color-bg);
-}
-
-.handoff__panel {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-3);
-  inline-size: min(460px, 100%);
-  padding: clamp(var(--space-4), 5vw, var(--space-6));
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-lg);
-  text-align: center;
-}
-
-.handoff__title {
-  font-size: clamp(1.4rem, 3vw, var(--font-size-xl));
-}
-
-.handoff__text {
-  color: var(--color-text-muted);
 }
 
 /* Toasts */

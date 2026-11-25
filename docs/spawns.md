@@ -298,7 +298,7 @@ Un modo futuro, por ejemplo `symmetric` o `diagonal`, solo necesita implementar 
 
 Las estrategias implementan el patrón Estrategia y solo se responsabilizan de elegir `n` celdas distintas del universo que define su modo. Todas usan el mismo helper de muestreo (`sampleWithoutReplacement`, sección 4.5), de modo que la uniformidad, el consumo de RNG y el tratamiento de errores son comunes.
 
-Convención de orden canónico: las celdas se enumeran siempre en orden fila-columna (`r` ascendente y, para cada `r`, `c` ascendente). Este orden hace deterministas los candidatos y los desempates.
+Convención de orden canónico: las celdas se enumeran inicialmente en orden fila-columna (`r` ascendente y, para cada `r`, `c` ascendente). Es solo el punto de partida: antes de asignar metas, cada lista de candidatos se baraja con el `rng` inyectado (sección 5.2), de modo que el orden fila-columna no sesga las posiciones finales.
 
 ### 4.1 `RandomSpawnStrategy`
 
@@ -486,15 +486,11 @@ El objetivo es encontrar una asignación inyectiva `i -> goal_i ∈ G_i` para to
 
 ### 5.2 Algoritmo con backtracking y MRV
 
-El problema es un matching perfecto en un grafo bipartito entre jugadores y celdas. Se resuelve con backtracking y MRV (*minimum remaining values*) **dinámico por nivel**: en cada nodo de la búsqueda se recalcula cuántos candidatos libres tiene cada jugador aún no asignado, y se elige primero quien tiene menos. No existe un orden inicial fijo calculado una sola vez; la selección se repite después de cada asignación porque el conjunto `used` reduce las opciones de los jugadores restantes. Los empates se rompen por índice de jugador más bajo, ya que `remaining` conserva el orden ascendente y la comparación es estrictamente menor. Los candidatos de cada jugador se recorren en orden canónico fila-columna. Todo ello hace la búsqueda determinista para una misma `seed`.
+El problema es un matching perfecto en un grafo bipartito entre jugadores y celdas. Se resuelve con backtracking y MRV (*minimum remaining values*) **dinámico por nivel**: en cada nodo de la búsqueda se recalcula cuántos candidatos libres tiene cada jugador aún no asignado, y se elige primero quien tiene menos. No existe un orden inicial fijo calculado una sola vez; la selección se repite después de cada asignación porque el conjunto `used` reduce las opciones de los jugadores restantes. Los empates se rompen por índice de jugador más bajo, ya que `remaining` conserva el orden ascendente y la comparación es estrictamente menor. Los candidatos de cada jugador se generan en orden canónico fila-columna, pero se barajan con Fisher-Yates usando el mismo `rng` del generador antes de la búsqueda; el backtracking recorre ese orden aleatorio. Todo ello hace la búsqueda determinista para una misma `seed`.
 
 ```ts
 function cellKey([r, c]: Cell): string {
   return `${r},${c}`;
-}
-
-function compareCells(a: Cell, b: Cell): number {
-  return a[0] - b[0] || a[1] - b[1];
 }
 
 function cellsAtDistance(from: Cell, distance: number, size: number): Cell[] {
@@ -512,7 +508,8 @@ function assignGoals(
   spawns: readonly Cell[],
   distance: number,
   size: number,
-  nodeBudget: number
+  nodeBudget: number,
+  rng: () => number
 ): GoalAssignment {
   const n = spawns.length;
   const spawnSet = new Set(spawns.map(cellKey));
@@ -520,10 +517,9 @@ function assignGoals(
 
   for (let i = 0; i < n; i++) {
     const cells = cellsAtDistance(spawns[i], distance, size)
-      .filter((cell) => !spawnSet.has(cellKey(cell)))
-      .sort(compareCells);
+      .filter((cell) => !spawnSet.has(cellKey(cell)));
     if (cells.length === 0) return { status: 'fail' };
-    candidates.push(cells);
+    candidates.push(sampleWithoutReplacement(cells, cells.length, rng));
   }
 
   const goals = new Array<Cell | null>(n).fill(null);
@@ -581,7 +577,7 @@ Detalles:
 - MRV se recalcula en cada llamada a `search` usando `remaining` y `used`; no existe un `order` precalculado. El desempate por índice de `player` más bajo evita ambigüedad.
 - Si algún jugador pendiente se queda sin opciones libres, la rama se descarta de inmediato (`return false`).
 - El presupuesto `nodeBudget` cuenta llamadas a `search`. Si se agota, se devuelve `status: 'budget'`; el llamador lo trata como intento fallido.
-- No consume RNG: la asignación es totalmente determinista para un conjunto de spawns y un `D` dados.
+- Consume RNG solo para barajar los candidatos de cada jugador. La búsqueda posterior es determinista para un conjunto de spawns, un `D` y una secuencia de RNG dados.
 
 ### 5.3 Fallback de distancia
 
@@ -708,34 +704,34 @@ Jugador C: spawn (7, 6)
 Jugador D: spawn (5, 0)
 ```
 
-`S = {(0,1), (2,7), (7,6), (5,0)}`. Candidatos a distancia Manhattan exactamente 5 que no pertenecen a `S`, en orden fila-columna:
+`S = {(0,1), (2,7), (7,6), (5,0)}`. Candidatos a distancia Manhattan exactamente 5 que no pertenecen a `S`, enumerados en orden fila-columna antes de barajar:
 
 | Jugador | Spawn | Nº candidatos | Candidatos |
-|---|---|---:|---|
+|---|---|---|---:|
 | A | `(0,1)` | 7 | `(0,6)`, `(1,5)`, `(2,4)`, `(3,3)`, `(4,0)`, `(4,2)`, `(5,1)` |
 | B | `(2,7)` | 8 | `(0,4)`, `(1,3)`, `(2,2)`, `(3,3)`, `(4,4)`, `(5,5)`, `(6,6)`, `(7,7)` |
 | C | `(7,6)` | 7 | `(2,6)`, `(3,5)`, `(3,7)`, `(4,4)`, `(5,3)`, `(6,2)`, `(7,1)` |
 | D | `(5,0)` | 8 | `(0,0)`, `(1,1)`, `(2,2)`, `(3,3)`, `(4,4)`, `(5,5)`, `(6,4)`, `(7,3)` |
 
-En la raíz, MRV recalcula y ordena A (7), C (7), B (8), D (8); el desempate por índice deja A antes que C. Tras fijar `goal_A = (0,6)`, se recalcula sobre los pendientes: C (7), B (8), D (8), porque `(0,6)` no aparecía en sus listas. El desempate por índice más bajo resuelve las posteriores igualdades. La búsqueda elige el primer candidato libre de cada lista:
+Tras barajar cada lista con el `rng`, MRV recalcula los pendientes en cada nivel y el desempate por índice más bajo resuelve las igualdades. Una posible asignación es:
 
 | Paso | Jugador | Candidato elegido | Estado |
 |---:|---|---|---|
-| 1 | A | `(0,6)` | primero libre de A |
-| 2 | C | `(2,6)` | no usado por A |
-| 3 | B | `(0,4)` | no usado por A ni C |
-| 4 | D | `(0,0)` | no usado por A, B ni C |
+| 1 | A | `(5,1)` | primero libre de A tras el barajado |
+| 2 | C | `(7,1)` | no usado por A |
+| 3 | B | `(5,5)` | no usado por A ni C |
+| 4 | D | `(6,4)` | no usado por A, B ni C |
 
 Resultado:
 
 ```text
-goal_A = (0,6)   d1((0,1),(0,6)) = 5
-goal_B = (0,4)   d1((2,7),(0,4)) = 2 + 3 = 5
-goal_C = (2,6)   d1((7,6),(2,6)) = 5
-goal_D = (0,0)   d1((5,0),(0,0)) = 5
+goal_A = (5,1)   d1((0,1),(5,1)) = 5
+goal_B = (5,5)   d1((2,7),(5,5)) = 3 + 2 = 5
+goal_C = (7,1)   d1((7,6),(7,1)) = 5
+goal_D = (6,4)   d1((5,0),(6,4)) = 1 + 4 = 5
 ```
 
-Los cuatro goals son distintos entre sí y ninguno coincide con un spawn. La rama elegida tiene éxito sin retroceso. Si una elección temprana bloquease a un jugador posterior, el backtracking probaría el siguiente candidato de la lista en orden, y así sucesivamente hasta agotar el presupuesto o encontrar matching. En este ejemplo `relaxed = false`, `goalDistance = 5` y `attempts = 1`.
+Los cuatro goals son distintos entre sí, ninguno coincide con un spawn y el barajado evita concentrarlos en la fila 0. Con otra semilla la asignación será distinta pero seguirá cumpliendo las invariantes. La rama elegida tiene éxito sin retroceso. Si una elección temprana bloquease a un jugador posterior, el backtracking probaría el siguiente candidato de la lista barajada, y así sucesivamente hasta agotar el presupuesto o encontrar matching. En este ejemplo `relaxed = false`, `goalDistance = 5` y `attempts = 1`.
 
 ---
 
@@ -924,6 +920,7 @@ export class InvalidConfigError extends Error {
 - Las estrategias crean sus propios universos y `sampleWithoutReplacement` copia antes de mezclar.
 - El resultado contiene arrays nuevos; el llamador puede mutarlos sin afectar al generador.
 - Si el llamador inyecta `rng`, el generador **no llama** a `Math.random` en ningún punto. `Math.random` es únicamente el valor por defecto cuando no se inyecta RNG.
+- El mismo `rng` se usa para muestrear spawns y para barajar los candidatos de metas; no hay otras fuentes de aleatoriedad.
 - El generador no llama a `Date.now()`, `performance.now()` ni temporizadores. Los presupuestos son numéricos y fijos.
 - `meta.seed` es un eco del valor recibido. El generador no reconstruye el RNG a partir de la semilla; eso lo hace el llamador con `mulberry32(seed)`.
 
@@ -1046,7 +1043,7 @@ Resultado ilustrativo (mismo escenario que la sección 5.5):
 ```json
 {
   "spawns": [[0, 1], [2, 7], [7, 6], [5, 0]],
-  "goals": [[0, 6], [0, 4], [2, 6], [0, 0]],
+  "goals": [[5, 1], [5, 5], [7, 1], [6, 4]],
   "meta": {
     "mode": "perimeter",
     "seed": 123456789,
@@ -1108,6 +1105,7 @@ Todas las filas con `seed` numérica son deterministas. Las celdas marcadas **go
 | 13 | 20 | 2 | `central` | `0` | 12 | 2/2 dentro de `5..14`; `d1 = 12`; sin solape. |
 | 14 | 8 | 8 | `random` | `1` | 5 | 8/8 desde 64 celdas; `d1 = 5`; uniformidad verificada por propiedades estadísticas, no por una salida única. |
 | 15 | 8 | 2 | `central` | `2` | 5 | 2/2 dentro de `2..5`; `d1 = 5`; sin solape; `relaxed` y `attempts` golden. |
+| 16 | 12 | 4 | `random` | `1..200` | 7 | 4 goals por semilla con cobertura de filas, columnas, bordes y zona interior; `d1 = 7`; sin solape. |
 
 ### 10.1 Propiedades invariantes
 
@@ -1167,6 +1165,7 @@ Propiedades a cubrir:
 11. I13: `sampleWithoutReplacement` con `count` negativo, no entero o `NaN` lanza `INSUFFICIENT_CANDIDATES` sin consumir RNG; con `count = 0` devuelve `[]`.
 12. I14: un RNG que devuelve siempre `1` mantiene el índice en `[i, |pool|)` y produce `count` celdas válidas y distintas.
 13. I15: al omitir presupuestos se usan `32` y `20000`; los valores no enteros o `<= 0` se normalizan sin lanzar `INVALID_ATTEMPTS`.
+14. Distribución de metas: con semillas fijas, las goals aparecen en varias filas y columnas (incluidas la fila inferior y la zona interior), sin concentrarse en la fila 0; se comprueban además unicidad, equidistancia y ausencia de solape con spawns.
 
 ### 10.2 Pruebas de error
 

@@ -239,6 +239,40 @@ test('spawns deterministas con la misma semilla', () => {
   assert.deepEqual(first, second);
 });
 
+test('metas repartidas por el tablero en generaciones con semillas distintas', () => {
+  const size = 12;
+  const playerCount = 4;
+  const rows = new Array(size).fill(0);
+  const cols = new Array(size).fill(0);
+  const sides = { top: 0, bottom: 0, left: 0, right: 0, interior: 0 };
+  let total = 0;
+
+  for (let seed = 1; seed <= 200; seed += 1) {
+    const result = generateSpawnsAndGoals({ size, playerCount, mode: 'random', rng: mulberry32(seed), seed });
+    const spawnKeys = new Set(result.spawns.map(cellKey));
+    assert.equal(new Set(result.goals.map(cellKey)).size, playerCount);
+    for (let i = 0; i < playerCount; i += 1) {
+      const goal = result.goals[i];
+      assert.ok(!spawnKeys.has(cellKey(goal)));
+      assert.equal(manhattan(result.spawns[i], goal), result.meta.goalDistance);
+      rows[goal.r] += 1;
+      cols[goal.c] += 1;
+      if (goal.r === 0) sides.top += 1;
+      else if (goal.r === size - 1) sides.bottom += 1;
+      else if (goal.c === 0) sides.left += 1;
+      else if (goal.c === size - 1) sides.right += 1;
+      else sides.interior += 1;
+      total += 1;
+    }
+  }
+
+  assert.ok(rows.every((count) => count > 0), `filas sin metas: ${rows}`);
+  assert.ok(cols.every((count) => count > 0), `columnas sin metas: ${cols}`);
+  assert.ok(Math.max(...rows) < total * 0.4, `sesgo vertical: ${rows}`);
+  assert.ok(Object.values(sides).every((count) => count > 0), JSON.stringify(sides));
+  assert.ok(sides.interior > total * 0.25, JSON.stringify(sides));
+});
+
 test('errores de configuración del generador', () => {
   assert.throws(() => generateSpawnsAndGoals({ size: 7, playerCount: 2 }), /INVALID_SIZE/);
   assert.throws(() => generateSpawnsAndGoals({ size: 9, playerCount: 1 }), /INVALID_PLAYER_COUNT/);
