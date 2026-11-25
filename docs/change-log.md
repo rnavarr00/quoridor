@@ -48,3 +48,51 @@ Los archivos de texto usan finales de línea LF.
 - **Tareas derivadas:**
   - [ ] Probar en el navegador que las metas aparecen repartidas entre bordes e interior y que una meta interior muestra sus coordenadas y marcador discontinuo.
   - [ ] Verificar en online con la misma semilla que dos jugadores reciben exactamente los mismos spawns y goals.
+
+## 2026-11-25 — Ajustes visuales en celdas y fichas
+
+- **Petición:** quitar la marca visible de spawn durante la partida, teñir las celdas objetivo con el color del jugador con transparencia y borde del mismo color, y dar a las fichas una sombra que sugiera relieve 3D sobre la celda.
+- **Solución/respuesta:** `board.js` eliminó `spawnMarks`, el span de spawn y su actualización; `updateGoalsAndSpawns()` pasó a `updateGoals()`, que ahora marca la celda objetivo con `.is-goal` y `--player-color`. `styles.css` elimina `.board__spawn-marker`, añade el fondo al 22 % y el borde interior del color del jugador en `.board__cell.is-goal .board__cell-face`, y aplica el nuevo token `--shadow-piece-3d` a `.board__piece` y `.board__piece.is-turn`. Se actualizó `docs/ui.md`. `npm test` (40/40), `npm run check`, `node --check public/js/board.js` y `git diff --check` pasan.
+- **Tareas derivadas:**
+  - [ ] Probar en el navegador que no aparece ninguna marca de spawn, que las metas muestran el fondo y borde del color correcto y que las fichas se ven ligeramente elevadas, también en el turno activo.
+  - [ ] Verificar con dos navegadores que cada meta conserva el color de su jugador y que el hover de movimientos legales sigue siendo claro.
+
+## 2026-11-25 — Fichas y metas sin inicial ni marcador interior
+
+- **Petición:** eliminar la letra «J» que aparece en la ficha y en la casilla objetivo, y quitar también el círculo a rayas dibujado dentro de la casilla objetivo.
+- **Solución/respuesta:** `board.js` dejó de asignar `textContent` a `.board__piece` y eliminó `.board__goal-marker`, su mapa `goalMarks`, el span decorativo y `updateGoals()`; el teñido de la celda sigue funcionando desde `updateCells()` con `.is-goal` y `--player-color`. `styles.css` eliminó todas las reglas `.board__goal-marker*`, incluido el borde discontinuo de las metas interiores. Se actualizó `docs/ui.md`. `npm test` (40/40), `npm run check`, `node --check public/js/board.js` y `git diff --check` pasan.
+- **Tareas derivadas:**
+  - [ ] Comprobar en el navegador que las fichas son discos de color sin texto, que las metas solo muestran fondo y borde del color del jugador y que no queda ningún anillo a rayas.
+  - [ ] Verificar que el tooltip de la ficha y el `aria-label` de la celda siguen identificando a cada jugador y su meta.
+
+## 2026-11-25 — Fichas planas sin punto blanco
+
+- **Petición:** eliminar el sombreado de las fichas y el pequeño círculo blanco que aparece en la parte inferior de la ficha propia, manteniendo el anillo azul del jugador activo.
+- **Solución/respuesta:** `styles.css` quitó `--shadow-piece-3d`, el `box-shadow` base de `.board__piece` y la regla `.board__piece.is-self::after`; `.board__piece.is-turn` conserva únicamente los dos anillos de foco blanco y azul. Se actualizó `docs/ui.md`. `npm test` (40/40), `npm run check`, `node --check public/js/board.js` y `git diff --check` pasan.
+- **Tareas derivadas:**
+  - [ ] Comprobar en el navegador que las fichas no proyectan sombra ni muestran el punto blanco inferior, y que el anillo azul del turno sigue visible.
+
+## 2026-11-25 — Paleta ampliada a 20 colores
+
+- **Petición:** añadir 12 colores más para elegir, hasta 20 en total, sin ampliar el número máximo de jugadores.
+- **Solución/respuesta:** `state.js` incorporó `PLAYER_COLOR_NAMES` y amplió `PLAYER_COLORS`, `colorVar()` y `colorHex()` a los índices 0..19; `ui.js` usa esas listas en el selector local y en su validación. `styles.css` añadió `--color-player-8` a `--color-player-19`, y `src/core/constants.js` sincronizó nombres, HEX, variantes y el tamaño de la paleta. Se actualizaron `docs/ui.md` y `docs/network.md`, y se añadió un test de longitud, coherencia y contraste ≥ 4.5:1 con blanco. `npm test` (41/41), `npm run check`, `node --check` de los JS modificados y `git diff --check` pasan.
+- **Tareas derivadas:**
+  - [ ] Probar en el navegador que el selector local muestra las 20 opciones con sus nombres y que ficha, avatar y metas usan el color elegido.
+  - [ ] Revisar visualmente que los colores nuevos se distinguen suficientemente en partidas de hasta 8 jugadores.
+
+## 2026-11-25 — Meta propia resaltada
+
+- **Petición:** destacar la casilla objetivo del usuario frente al resto cuando hay muchos jugadores y colores parecidos, con el mismo tipo de resaltado que la ficha en turno.
+- **Solución/respuesta:** `board.js` añadió `.is-my-goal` a la meta de `myId` en `updateCells()`; `styles.css` sube su tinte al 34 % y aplica el anillo blanco y azul de foco, con `z-index` para que no quede tapada por celdas vecinas. Se actualizó `docs/ui.md`. `npm test` (41/41), `npm run check`, `node --check public/js/board.js` y `git diff --check` pasan.
+- **Tareas derivadas:**
+  - [ ] Comprobar en el navegador que solo la meta propia lleva el anillo azul y que sigue siendo visible al pasar el cursor sobre un movimiento legal.
+  - [ ] Verificar en local y online que el resaltado sigue al jugador correcto al cambiar de turno.
+
+## 2026-11-25 — Tablero máximo 16 y radio de pared reducido
+
+- **Petición:** reducir el máximo de casillas del tablero a 16 y disminuir el radio en que el cursor detecta colocación de pared sin reducir el grosor visual de la pared, para poder mover fichas en tableros grandes.
+- **Solución/respuesta:** `state.js`, `ui.js`, `index.html`, `constants.js`, `GameEngine.js`, `spawn.js` y `protocol.js` limitan `size` a 8..16; se actualizaron tests y documentación, incluidos los vectores de `spawns.md`. `styles.css` añadió `--wall-hit-radius` (3 px / 4 px en móvil), reduce el `::after` de anclas a ese radio y pone las pistas en `pointer-events: none`; `board.js` cachea el radio desde CSS y lo usa en `findHintNearPointer()`. `--wall-thickness` y los `span 3` no cambian. `npm test` (41/41), `npm run check`, los `node --check` de los JS modificados, `git diff --check` y la comprobación LF pasan.
+- **Tareas derivadas:**
+  - [ ] Probar en navegador 8 × 8 y 16 × 16 que el centro de las celdas mueve la ficha y que las paredes se colocan con el canal resaltado.
+  - [ ] Verificar en móvil el radio de 4 px, el teclado y que no se pierde precisión al colocar paredes.
+  - [ ] Reiniciar o drenar salas creadas antes del cambio con tamaño 17-20.

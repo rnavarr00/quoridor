@@ -6,6 +6,8 @@ import {
   goalSideLabel,
   LOCAL_DEFAULT_CONFIG,
   normalizeRoomCode,
+  PLAYER_COLOR_NAMES,
+  PLAYER_COLORS,
   playerInitial,
   colorVar,
   sanitizeConfig,
@@ -15,7 +17,6 @@ import {
   validateRoomCode,
 } from './state.js';
 
-const COLOR_NAMES = ['Rojo', 'Azul', 'Verde', 'Ámbar', 'Violeta', 'Naranja', 'Teal', 'Rosa'];
 const REASON_LABELS = {
   goal: 'Meta alcanzada',
   last_active: 'Último jugador activo',
@@ -154,9 +155,9 @@ class UI {
   }
 
   populateSelects() {
-    fillRangeSelect(this.el.createSize, 8, 20);
-    fillRangeSelect(this.el.localSize, 8, 20);
-    fillRangeSelect(this.el.lobbySize, 8, 20);
+    fillRangeSelect(this.el.createSize, 8, 16);
+    fillRangeSelect(this.el.localSize, 8, 16);
+    fillRangeSelect(this.el.lobbySize, 8, 16);
     fillRangeSelect(this.el.createMaxPlayers, 2, 8);
     fillRangeSelect(this.el.lobbyMaxPlayers, 2, 8);
     fillRangeSelect(this.el.localPlayerCount, 2, 8);
@@ -1096,7 +1097,7 @@ class UI {
       let name = old?.name || (index === 0 && firstAlias ? firstAlias : `Jugador ${index + 1}`);
       let colorIndex = Number.isInteger(old?.colorIndex) ? old.colorIndex : index;
       if (used.has(colorIndex)) {
-        colorIndex = Array.from({ length: 8 }, (value, key) => key).find((value) => !used.has(value));
+        colorIndex = Array.from({ length: PLAYER_COLORS.length }, (value, key) => key).find((value) => !used.has(value));
       }
       used.add(colorIndex);
       next.push({ name, colorIndex });
@@ -1139,10 +1140,10 @@ class UI {
     colorSelect.id = `local-color-${index}`;
     colorSelect.dataset.localColor = String(index);
     colorSelect.setAttribute('aria-label', `Color del jugador ${index + 1}`);
-    for (let colorIndex = 0; colorIndex < 8; colorIndex += 1) {
+    for (let colorIndex = 0; colorIndex < PLAYER_COLOR_NAMES.length; colorIndex += 1) {
       const option = document.createElement('option');
       option.value = String(colorIndex);
-      option.textContent = COLOR_NAMES[colorIndex];
+      option.textContent = PLAYER_COLOR_NAMES[colorIndex];
       colorSelect.appendChild(option);
     }
     colorSelect.value = String(player.colorIndex);
@@ -1247,7 +1248,7 @@ class UI {
         return { ok: false, error: 'Los nombres de los jugadores no pueden repetirse.', config, players: [] };
       }
       const colorIndex = Number(select?.value);
-      if (!Number.isInteger(colorIndex) || colorIndex < 0 || colorIndex > 7 || colors.has(colorIndex)) {
+      if (!Number.isInteger(colorIndex) || colorIndex < 0 || colorIndex > PLAYER_COLORS.length - 1 || colors.has(colorIndex)) {
         return { ok: false, error: 'Cada jugador debe tener un color distinto.', config, players: [] };
       }
       names.add(key);

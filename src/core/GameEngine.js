@@ -45,7 +45,7 @@ export class GameEngine {
   static create(config, playersInput, spawnResult, seed = 0) {
     if (!config || !Number.isInteger(config.size)) throw new Error('INVALID_CONFIG');
     const size = config.size;
-    if (!Number.isInteger(size) || size < 8 || size > 20) throw new Error('INVALID_SIZE');
+    if (!Number.isInteger(size) || size < 8 || size > 16) throw new Error('INVALID_SIZE');
     if (!Array.isArray(playersInput) || playersInput.length < 2 || playersInput.length > 8) {
       throw new Error('INVALID_PLAYER_COUNT');
     }

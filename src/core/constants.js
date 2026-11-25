@@ -23,7 +23,7 @@ export const CASUAL_CONFIG = Object.freeze({
 });
 
 export const LIMITS = Object.freeze({
-  size: { min: 8, max: 20 },
+  size: { min: 8, max: 16 },
   players: { min: 2, max: 8 },
   walls: { min: 0, max: 20 },
   turnSeconds: 30,
@@ -40,8 +40,20 @@ export const PLAYER_COLORS = Object.freeze([
   { name: 'Ámbar', hex: '#A16207', soft: '#FDE68A', dark: '#713F12' },
   { name: 'Violeta', hex: '#6D28D9', soft: '#C4B5FD', dark: '#4C1D95' },
   { name: 'Naranja', hex: '#C2410C', soft: '#FDBA74', dark: '#7C2D12' },
-  { name: 'Turquesa', hex: '#0F766E', soft: '#99F6E4', dark: '#115E59' },
-  { name: 'Magenta', hex: '#9D174D', soft: '#F9A8D4', dark: '#831843' },
+  { name: 'Teal', hex: '#0F766E', soft: '#99F6E4', dark: '#115E59' },
+  { name: 'Rosa', hex: '#9D174D', soft: '#F9A8D4', dark: '#831843' },
+  { name: 'Indigo', hex: '#4338CA', soft: '#A5B4FC', dark: '#312E81' },
+  { name: 'Fucsia', hex: '#A21CAF', soft: '#F0ABFC', dark: '#701A75' },
+  { name: 'Cian', hex: '#0E7490', soft: '#67E8F9', dark: '#164E63' },
+  { name: 'Lima', hex: '#4D7C0F', soft: '#BEF264', dark: '#365314' },
+  { name: 'Mostaza', hex: '#854D0E', soft: '#FDE047', dark: '#713F12' },
+  { name: 'Esmeralda', hex: '#047857', soft: '#6EE7B7', dark: '#065F46' },
+  { name: 'Celeste', hex: '#0369A1', soft: '#7DD3FC', dark: '#0C4A6E' },
+  { name: 'Púrpura', hex: '#7E22CE', soft: '#D8B4FE', dark: '#581C87' },
+  { name: 'Marrón', hex: '#78350F', soft: '#FCD34D', dark: '#451A03' },
+  { name: 'Pizarra', hex: '#334155', soft: '#CBD5E1', dark: '#0F172A' },
+  { name: 'Granate', hex: '#831843', soft: '#F9A8D4', dark: '#500724' },
+  { name: 'Oliva', hex: '#3F6212', soft: '#D9F99D', dark: '#1A2E05' },
 ]);
 
 export const ENGINE_ERRORS = Object.freeze([

@@ -415,6 +415,10 @@ test('updateConfig y resetConfig', { timeout: 10000 }, async (t) => {
   send(a.ws, 'client.updateConfig', { config: { size: 7 } }, 'cfg-bad');
   const invalid = await expectMessage(errorsA, (msg) => msg.type === 'server.error' && msg.requestId === 'cfg-bad');
   assert.equal(invalid.payload.code, 'INVALID_CONFIG');
+
+  send(a.ws, 'client.updateConfig', { config: { size: 17 } }, 'cfg-too-big');
+  const tooBig = await expectMessage(errorsA, (msg) => msg.type === 'server.error' && msg.requestId === 'cfg-too-big');
+  assert.equal(tooBig.payload.code, 'INVALID_CONFIG');
   assert.equal(ctx.app.manager.rooms.get(code).config.size, 16);
 
   send(a.ws, 'client.resetConfig', {}, 'cfg-reset');
@@ -497,7 +501,7 @@ test('timeout de 30 s con auto-move mantiene el bucle de turno', { timeout: 1000
   const ctx = await setup(t);
   const a = await hello(ctx, 'Ana');
   const b = await hello(ctx, 'Luis');
-  const code = (await createRoom(a.ws, 'Ana', { size: 20 }, 'create-timeout')).roomCode;
+  const code = (await createRoom(a.ws, 'Ana', { size: 16 }, 'create-timeout')).roomCode;
   await joinRoom(b.ws, code, 'Luis', 'join-timeout');
   const initial = await startGame(a.ws, 'start-timeout');
   const room = ctx.app.manager.rooms.get(code);
@@ -519,7 +523,7 @@ test('AFK: dos acciones inválidas en turnos distintos convierten en fantasma', 
   const ctx = await setup(t);
   const a = await hello(ctx, 'Ana');
   const b = await hello(ctx, 'Luis');
-  const code = (await createRoom(a.ws, 'Ana', { size: 20 }, 'create-afk')).roomCode;
+  const code = (await createRoom(a.ws, 'Ana', { size: 16 }, 'create-afk')).roomCode;
   await joinRoom(b.ws, code, 'Luis', 'join-afk');
   const initial = await startGame(a.ws, 'start-afk');
   const targetId = initial.turnPlayerId;
@@ -558,7 +562,7 @@ test('leaveGame crea fantasma y mantiene la partida con tres jugadores', { timeo
   const a = await hello(ctx, 'Ana');
   const b = await hello(ctx, 'Luis');
   const c = await hello(ctx, 'Cara');
-  const code = (await createRoom(a.ws, 'Ana', { size: 20, maxPlayers: 3 }, 'create-leave')).roomCode;
+  const code = (await createRoom(a.ws, 'Ana', { size: 16, maxPlayers: 3 }, 'create-leave')).roomCode;
   await joinRoom(b.ws, code, 'Luis', 'join-leave-b');
   await joinRoom(c.ws, code, 'Cara', 'join-leave-c');
   const initial = await startGame(a.ws, 'start-leave');

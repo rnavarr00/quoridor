@@ -12,7 +12,7 @@
 Resumen normativo para los subagentes de UI y CSS. Si el resto del documento entra en conflicto con esta sección, prevalece el código.
 
 - **Pantallas reales:** `home`, `create`, `join`, `local`, `queue`, `lobby`, `game`, `gameover` (`SCREENS` en `public/js/state.js` y `data-screen` en `public/index.html`).
-- **Paleta canónica:** `PLAYER_COLORS` en `state.js` = `#B91C1C`, `#1D4ED8`, `#166534`, `#A16207`, `#6D28D9`, `#C2410C`, `#0F766E`, `#9D174D`; se exponen como `--color-player-0` a `--color-player-7` y se aplican con `colorVar(colorIndex)`.
+- **Paleta canónica:** `PLAYER_COLORS` en `state.js` tiene 20 colores (índices 0..19, tabla completa en §10.1); se exponen como `--color-player-0` a `--color-player-19` y se aplican con `colorVar(colorIndex)`.
 - **Grid real:** 2n + 1 pistas por eje con canal de pared al inicio y al final; celdas en pistas pares y paredes/anclas en impares (ver §7.4).
 - **Alias:** 2–16 code points, solo letras Unicode, números, espacio, `_` y `-`; sin emojis.
 - **Capa de presentación:** `public/css/styles.css` y `public/js/main.js` son los dos módulos que la completan y están aún por crear.
@@ -392,7 +392,7 @@ Valores iniciales de la pantalla `create`:
 
 | Campo | Default UI | Rango / valores | Control | Validación |
 |---|---:|---|---|---|
-| `size` | **9** | 8–20, entero | `<select>` o stepper | Entero, dentro de rango. |
+| `size` | **9** | 8–16, entero | `<select>` o stepper | Entero, dentro de rango. |
 | `maxPlayers` | **2** | 2–8, entero | Stepper `− / +` | No puede ser menor que los jugadores actuales en lobby. |
 | `wallsPerPlayer` | **10** | 0–20, entero | `<input type="range">` + número | Entero, dentro de rango. |
 | `spawnMode` | **`random`** | `random`, `central`, `perimeter` | `<select>` | Valor exacto. |
@@ -462,7 +462,7 @@ Aplicación de cambios:
 </section>
 ```
 
-- Orden fijo: `colorIndex` ascendente (0..7). Los fantasmas permanecen en su posición, atenuados y con patrón.
+- Orden fijo: `colorIndex` ascendente (0..19). Los fantasmas permanecen en su posición, atenuados y con patrón.
 - Cada fila muestra avatar con inicial, nombre, color de jugador, badges “Host”, “Tú”, “Conectado”/“Fantasma”/“Desconectado”.
 - El color se aplica desde un mapa `colorIndex → token`; nunca como cadena libre del servidor.
 - `server.roomUpdate` y `server.roomJoined` actualizan la lista completa; no reconstruir filas idénticas.
@@ -589,9 +589,9 @@ Normalización:
 - Valores iniciales: tamaño 9, jugadores 2, paredes 10, spawn `random`.
 - Botón “Restablecer” vuelve a esos valores en local, sin llamar a `client.resetConfig`.
 - Selector **exacto** de número de jugadores locales: 2–8. No es un máximo; se crean exactamente esos jugadores.
-- Tamaño 8–20; paredes 0–20; spawn `random` / `central` / `perimeter`.
+- Tamaño 8–16; paredes 0–20; spawn `random` / `central` / `perimeter`.
 - Nombres automáticos editables: “Jugador 1”, “Jugador 2”, …; máximo 16 caracteres; sin duplicados normalizados.
-- Colores automáticos por `colorIndex` 0..n-1; editables mediante una lista de 8 colores, sin repetir color entre jugadores.
+- Colores automáticos por `colorIndex` 0..n-1; editables mediante una lista de 20 colores, sin repetir color entre jugadores.
 - Avatar con inicial y color. Si se cambia el nombre, actualizar la inicial.
 - Resumen “Tablero 9 × 9 · 2 jugadores · 10 paredes · Spawn aleatorio”.
 - El botón “Empezar” valida nombres, colores y configuración; luego llama a `src/core` para crear la partida local.
@@ -764,7 +764,7 @@ Debe mostrar, sin scroll en 1366 × 768:
 
 #### 7.4.1 Pistas y coordenadas
 
-- Tablero cuadrado de `size × size` celdas, `8 ≤ size ≤ 20`.
+- Tablero cuadrado de `size × size` celdas, `8 ≤ size ≤ 16`.
 - CSS Grid de `size * 2 + 1` pistas por eje, con canal de pared al inicio y al final; esta es la estructura real de `board.js`.
   - Pistas pares en base 1 (2, 4, 6, …): celdas. La celda `(x, y)` usa `grid-column: 2x + 2` y `grid-row: 2y + 2`.
   - Pistas impares (1, 3, 5, …): canales de pared. El ancla `(x, y)` usa `grid-column: 2x + 3` y `grid-row: 2y + 3`.
@@ -784,28 +784,26 @@ Debe mostrar, sin scroll en 1366 × 768:
   data-x="1" data-y="2"
   aria-label="B3, libre">
   <span class="board__cell-face" aria-hidden="true"></span>
-  <span class="board__spawn" aria-hidden="true"></span>
-  <span class="board__goal" aria-hidden="true"></span>
   <span class="board__move-dot" aria-hidden="true"></span>
 </button>
 ```
 
-- La ficha, la meta y el spawn se insertan dentro de la celda como `.board__piece`, `.board__goal-marker` y `.board__spawn-marker`, con `--player-color: var(--color-player-N)`.
+- La ficha se inserta dentro de la celda como `.board__piece`, con `--player-color: var(--color-player-N)`; la celda objetivo recibe `.is-goal` y el mismo `--player-color`, y la propia recibe además `.is-my-goal`.
 - La celda es un botón nativo dentro de un contenedor `role="group"`; mantiene foco y activación por teclado.
 - `tabindex="-1"` en todas salvo la celda activa, que usa `tabindex="0"` (roving tabindex).
 - No usar `role="grid"` con celdas planas sin `role="row"`: si se desea semántica de grid, envolver cada fila en un `role="row"` y cada celda en `role="gridcell"` sin romper el CSS Grid. La opción recomendada es `role="group"` + botones etiquetados.
 - `aria-label` incluye coordenada, ocupante y estado: “C4, ficha de Ana”, “C5, meta de Luis”, “D4, libre”.
-- La ficha y la meta son `aria-hidden` porque el nombre accesible de la celda ya lo describe.
+- La ficha es `aria-hidden` porque el nombre accesible de la celda ya lo describe.
 - `data-x`/`data-y` son numéricos validados; nunca se interpolan como HTML.
 
 #### 7.4.3 Objetivos, fichas, spawns y fantasmas
 
-- **Objetivo/meta:** banda interior en el lado correspondiente (`top`/`bottom`/`left`/`right`) o borde discontinuo para metas interiores (`center`), siempre con el color del jugador y margen interno de 4–6 px. No usar solo un borde exterior.
-- **Ficha:** disco del color del jugador, inicial del nombre en blanco, sombra sutil, tamaño ~70 % de la celda.
-- **Spawn:** pequeño anillo o marca discreta del color del jugador en la celda de origen; opcional, no debe confundirse con la meta.
+- **Objetivo/meta:** la celda completa se tiñe con el 22 % del color del jugador y su borde interior también usa ese color; no se añade ningún marcador interior. La meta propia sube al 34 % y lleva el mismo anillo blanco y azul de foco que la ficha en turno, para distinguirla cuando hay colores parecidos.
+- **Ficha:** disco del color del jugador, sin texto ni sombra, tamaño ~70 % de la celda.
+- **Spawn:** no se muestra ninguna marca visible durante la partida.
 - **Fantasma:** opacidad 0.45, patrón diagonal, borde discontinuo, filtro de saturación reducido y badge “Fantasma” en el panel. La celda sigue siendo transitable; el `aria-label` indica “fantasma, celda transitable”.
-- **Turno activo:** anillo de foco/estado en la ficha activa; no animar la ficha en cada tick.
-- No usar el color como único identificador: inicial + nombre en panel + patrones opcionales.
+- **Turno activo:** anillo de foco blanco y azul en la ficha activa y en la meta propia; no animar la ficha en cada tick.
+- No usar el color como único identificador: nombre en panel, avatares con inicial y patrones opcionales.
 
 #### 7.4.4 CSS Grid del tablero
 
@@ -910,10 +908,11 @@ Posicionamiento exacto de paredes (coordenadas 1-based de CSS Grid, según `boar
 - Cada ancla es una intersección entre celdas; puede alojar una pared H, V o ambas cruzadas.
 - Se renderiza un botón de ancla por intersección para teclado; las anclas legales reciben `data-legal="true"` y un único `tabIndex` móvil (roving).
 - El ratón **no necesita modo ni atajo**:
-  - Todas las paredes legales (H y V) se muestran como pistas interactivas sobre los canales.
+  - Todas las paredes legales (H y V) se muestran como pistas visuales sobre los canales, con `pointer-events: none` para que no tapen las celdas.
   - Al pasar el cursor por un canal se resalta la pista legal más cercana y se muestra el preview con el color del jugador.
-  - Un click sobre esa pista coloca la pared inmediatamente.
+  - Un click dentro del radio de esa pista coloca la pared inmediatamente.
   - Si H y V se solapan, gana la pista cuyo centro esté más cerca del cursor.
+  - El radio de captura fuera de la pista es `--wall-hit-radius`: 3 px en escritorio y 4 px en móvil. El ancla usa el mismo radio, sin ampliar el canal con `--wall-thickness`, para que el centro de la celda siga seleccionando movimientos.
 - Teclado:
   - `H` por defecto; `R` alterna la orientación del ancla enfocada y se anuncia.
   - Flechas navegan entre anclas legales de la orientación actual; `Enter`/`Espacio` coloca; `Escape` oculta el preview.
@@ -1135,10 +1134,10 @@ Reglas:
 
 ### 10.1 Paleta de jugadores
 
-Esta es la paleta canónica y única: `PLAYER_COLORS` en `public/js/state.js`, expuesta en CSS como `--color-player-0` a `--color-player-7` y aplicada por `colorVar(colorIndex)`; `colorHex(colorIndex)` devuelve el HEX. No se acepta un color arbitrario del servidor ni HEX alternativos. Todos los colores llevan texto blanco con contraste ≥ 4.5:1.
+Esta es la paleta canónica y única: `PLAYER_COLORS` y `PLAYER_COLOR_NAMES` en `public/js/state.js`, expuesta en CSS como `--color-player-0` a `--color-player-19` y aplicada por `colorVar(colorIndex)`; `colorHex(colorIndex)` devuelve el HEX. No se acepta un color arbitrario del servidor ni HEX alternativos. Todos los colores llevan texto blanco con contraste ≥ 4.5:1.
 
 | Índice | Variable CSS | Nombre | HEX | Texto | Contraste con blanco | Uso |
-|---:|---|---|---|---|---:|---|
+|---|---:|---|---|---|---:|---|
 | 0 | `--color-player-0` | Rojo | `#B91C1C` | `#FFFFFF` | 6.5:1 | Ficha, avatar, meta, borde de turno. |
 | 1 | `--color-player-1` | Azul | `#1D4ED8` | `#FFFFFF` | 6.7:1 | Ficha, avatar, meta, borde de turno. |
 | 2 | `--color-player-2` | Verde | `#166534` | `#FFFFFF` | 7.1:1 | Ficha, avatar, meta, borde de turno. |
@@ -1147,6 +1146,19 @@ Esta es la paleta canónica y única: `PLAYER_COLORS` en `public/js/state.js`, e
 | 5 | `--color-player-5` | Naranja | `#C2410C` | `#FFFFFF` | 5.2:1 | Ficha, avatar, meta, borde de turno. |
 | 6 | `--color-player-6` | Teal | `#0F766E` | `#FFFFFF` | 5.5:1 | Ficha, avatar, meta, borde de turno. |
 | 7 | `--color-player-7` | Rosa | `#9D174D` | `#FFFFFF` | 7.9:1 | Ficha, avatar, meta, borde de turno. |
+| 8 | `--color-player-8` | Indigo | `#4338CA` | `#FFFFFF` | 7.9:1 | Ficha, avatar, meta, borde de turno. |
+| 9 | `--color-player-9` | Fucsia | `#A21CAF` | `#FFFFFF` | 6.3:1 | Ficha, avatar, meta, borde de turno. |
+| 10 | `--color-player-10` | Cian | `#0E7490` | `#FFFFFF` | 5.4:1 | Ficha, avatar, meta, borde de turno. |
+| 11 | `--color-player-11` | Lima | `#4D7C0F` | `#FFFFFF` | 5.0:1 | Ficha, avatar, meta, borde de turno. |
+| 12 | `--color-player-12` | Mostaza | `#854D0E` | `#FFFFFF` | 6.9:1 | Ficha, avatar, meta, borde de turno. |
+| 13 | `--color-player-13` | Esmeralda | `#047857` | `#FFFFFF` | 5.5:1 | Ficha, avatar, meta, borde de turno. |
+| 14 | `--color-player-14` | Celeste | `#0369A1` | `#FFFFFF` | 5.9:1 | Ficha, avatar, meta, borde de turno. |
+| 15 | `--color-player-15` | Púrpura | `#7E22CE` | `#FFFFFF` | 7.0:1 | Ficha, avatar, meta, borde de turno. |
+| 16 | `--color-player-16` | Marrón | `#78350F` | `#FFFFFF` | 9.1:1 | Ficha, avatar, meta, borde de turno. |
+| 17 | `--color-player-17` | Pizarra | `#334155` | `#FFFFFF` | 10.4:1 | Ficha, avatar, meta, borde de turno. |
+| 18 | `--color-player-18` | Granate | `#831843` | `#FFFFFF` | 9.7:1 | Ficha, avatar, meta, borde de turno. |
+| 19 | `--color-player-19` | Oliva | `#3F6212` | `#FFFFFF` | 7.1:1 | Ficha, avatar, meta, borde de turno. |
+
 
 Notas:
 
@@ -1256,8 +1268,9 @@ Notas:
 | `--touch-min` | 44 px | Objetivo táctil mínimo. |
 | `--board-gap` | 2 px | Gap visual entre celdas. |
 | `--wall-thickness` | `clamp(6px, 1vmin, 10px)` | Grosor de canales y paredes. |
+| `--wall-hit-radius` | `3px` / `4px` en móvil | Radio extra de captura de pistas y anclas. |
 | `--cell-size` | fórmula §10.7 | Lado de celda. |
-| `--board-size` | 8..20 | Número de celdas por lado. |
+| `--board-size` | 8..16 | Número de celdas por lado. |
 
 ### 10.7 Fórmula de tamaño del tablero
 
@@ -1310,11 +1323,11 @@ Notas de implementación:
 - En 1366 × 768: `--board-available` = 512 px. Con `--wall-thickness` ≈ 7.7 px:
   - size 8: celda ≈ 56.7 px, tablero ≈ 512 px.
   - size 12: celda ≈ 35.1 px, tablero ≈ 512 px.
-  - size 20: celda ≈ 20.2 px, tablero ≈ 512 px.
+  - size 16: celda ≈ 23.8 px, tablero ≈ 512 px.
 - En móvil de 390 px: `--board-available` = 366 px. Con pared de 5 px:
-  - size 20: celda ≈ 13.1 px, tablero ≈ 366 px.
+  - size 16: celda ≈ 17.6 px, tablero ≈ 366 px.
   - size 8: celda ≈ 40.1 px, tablero ≈ 366 px.
-- En 320 px: size 20 con celda mínima de 12 px ocupa ≈ 345 px; si no cabe, el contenedor del tablero permite scroll.
+- En 320 px: size 16 con celda mínima de 12 px ocupa ≈ 277 px; si no cabe, el contenedor del tablero permite scroll.
 - El `aside` nunca reduce la celda por debajo del mínimo; en ese caso, el panel se colapsa (tablet/móvil) antes que encoger el tablero.
 
 ### 10.8 Tabla de tokens CSS
@@ -1390,8 +1403,9 @@ Notas de implementación:
 | `--touch-min` | `44px` | Tamaño. |
 | `--board-gap` | `2px` | Tablero. |
 | `--wall-thickness` | `clamp(6px, 1vmin, 10px)` | Tablero. |
+| `--wall-hit-radius` | `3px` / `4px` en móvil | Radio extra de captura de paredes. |
 | `--cell-size` | fórmula §10.7 | Tablero. |
-| `--board-size` | `8..20` | Tablero. |
+| `--board-size` | `8..16` | Tablero. |
 | `--player-color` | `var(--color-player-N)` | Contexto local. |
 
 ---
@@ -1611,7 +1625,7 @@ Reglas:
 - Las actualizaciones de tablero y timer deben ser independientes:
   - Tick del timer: solo texto/transform.
   - `gameState`: solo cambios de celdas/fichas/paredes.
-- Tamaño máximo: 20 × 20 = 400 celdas + 361 anclas; no se necesita virtualización.
+- Tamaño máximo: 16 × 16 = 256 celdas + 225 anclas; no se necesita virtualización.
 - Evitar recrear el tablero completo en cada `server.tick` o `gameState`.
 
 ### 13.2 Render incremental
@@ -1659,7 +1673,7 @@ Reglas:
   - Render de `gameState`: < 8 ms.
   - Tick del timer: < 2 ms.
   - Cambio de pantalla: < 50 ms percibido; evitar bloqueo del hilo principal.
-- Probar con 8 jugadores, tablero 20 × 20, 30 s de ticks, reconexión y múltiples toasts.
+- Probar con 8 jugadores, tablero 16 × 16, 30 s de ticks, reconexión y múltiples toasts.
 - No incluir logs de depuración en producción.
 
 ---
@@ -1674,7 +1688,7 @@ Reglas:
 - Truncar visualmente con CSS (`text-overflow: ellipsis`) y mantener el texto completo en un `title`/tooltip accesible, no con HTML.
 - Los `aria-label` también se construyen con texto plano, no con `innerHTML`.
 - No interpolar datos del servidor en `style`; aplicar color solo desde el mapa `colorIndex → var(--color-player-N)`.
-- Validar `colorIndex` como entero 0..7; si es inválido, usar un color neutro y registrar el error de protocolo, sin inyectar el valor.
+- Validar `colorIndex` como entero 0..19; si es inválido, usar un color neutro y registrar el error de protocolo, sin inyectar el valor.
 
 ### 14.2 Validación de entradas y URLs
 
@@ -1728,9 +1742,9 @@ Notas:
 ### 15.1 Criterios visuales
 
 - La pantalla de partida cabe sin scroll vertical en 1366 × 768 con header, footer y aside; el aside tiene scroll propio.
-- El tablero mantiene celdas cuadradas, gap uniforme, metas legibles y fichas centradas en 8 × 8, 12 × 12 y 20 × 20.
+- El tablero mantiene celdas cuadradas, gap uniforme, metas legibles y fichas centradas en 8 × 8, 12 × 12 y 16 × 16.
 - Ningún texto o control se solapa; los nombres largos se truncan sin romper filas.
-- Los 8 colores de jugador son distinguibles y su texto blanco cumple contraste.
+- Los 20 colores de jugador disponibles son distinguibles y su texto blanco cumple contraste.
 - El estado de turno, fantasma y conexión se entiende sin depender solo del color.
 - Los estados hover, focus, active, disabled, pending y error son visualmente distintos.
 - En móvil, el tablero, el footer y el cajón de jugadores son usables con una mano y sin zoom accidental.
@@ -1744,7 +1758,7 @@ Notas:
 - [ ] Home: alias de 2–16 caracteres con acentos se persiste y se muestra con `textContent`; emoji, 1 carácter y 17 caracteres se rechazan.
 - [ ] Home: “Cómo jugar” cierra con Escape, clic fuera y botón; el foco se restaura.
 - [ ] Crear: defaults 9 / 2 / 10 / random visibles y enviados al crear la sala.
-- [ ] Crear: límites 8–20, 2–8, 0–20; no se puede bajar `maxPlayers` por debajo de los jugadores actuales.
+- [ ] Crear: límites 8–16, 2–8, 0–20; no se puede bajar `maxPlayers` por debajo de los jugadores actuales.
 - [ ] Lobby host: cambios de configuración se envían con debounce y se reflejan tras `roomUpdate`.
 - [ ] Lobby host: “Restablecer” emite `client.resetConfig` y muestra el snapshot efectivo del servidor.
 - [ ] Lobby: código de 6 caracteres sin ambiguos; copiar muestra “Copiado” y funciona el fallback.
@@ -1758,10 +1772,11 @@ Notas:
 - [ ] Local: el tablero pasa al siguiente jugador sin pantalla de turno; foco, anuncio y temporizador se reinician.
 - [ ] Local: salir de la partida pide confirmación y vuelve a la configuración; revancha funciona.
 - [ ] Partida 2 jugadores / tablero 8: layout, turnos, metas y paredes correctos.
-- [ ] Partida 8 jugadores / tablero 20: panel con scroll, fichas legibles y sin solapamientos.
-- [ ] Tablero: `size * 2 + 1` pistas con canal de pared inicial y final, celdas en pistas pares, anclas en impares, celdas cuadradas, gap, metas con banda de color y fichas con inicial.
+- [ ] Partida 8 jugadores / tablero 16: panel con scroll, fichas legibles y sin solapamientos.
+- [ ] Tablero: `size * 2 + 1` pistas con canal de pared inicial y final, celdas en pistas pares, anclas en impares, celdas cuadradas, gap, metas con banda de color y fichas sin inicial.
 - [ ] Movimiento: puntos solo en tu turno, en celdas legales; click y teclado envían una sola intención.
 - [ ] Paredes: preview solo en anclas legales, rotación con R/botón, click coloca, contador correcto y sin previews ilegales.
+- [ ] Paredes: radio de captura de 3 px/4 px móvil; el centro de la celda mueve la ficha y no coloca pared en tablero 16.
 - [ ] Paredes: `PATH_BLOCKED`, `WALL_OVERLAP` y `NO_WALLS_LEFT` muestran toast y no alteran el estado local.
 - [ ] Timer: sincronizado con `server.tick`, últimos 5 s en rojo, sin autoridad local; a 0 espera al servidor.
 - [ ] Toasts: info/aviso/error/éxito, cola máxima, deduplicación, `aria-live` y pausa al hover/focus.
@@ -1785,7 +1800,7 @@ Notas:
 - [ ] Doble clic: no duplica movimientos, paredes, configuración, revancha ni unión.
 - [ ] Red: errores y reconexión con backoff; sin bucles infinitos ni toasts duplicados.
 - [ ] Seguridad: ningún dato del servidor pasa por `innerHTML`; CSP activa; nombres escapados.
-- [ ] Rendimiento: `gameState` no recrea 400 celdas; tick solo actualiza timer; <16 ms por frame.
+- [ ] Rendimiento: `gameState` no recrea 256 celdas; tick solo actualiza timer; <16 ms por frame.
 - [ ] Sin errores en consola; sin recursos 404; sin logs de tokens o datos sensibles.
 
 ---

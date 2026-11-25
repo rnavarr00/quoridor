@@ -14,7 +14,9 @@ import {
   SPAWN_MODES,
   manhattan,
   cellKey,
+  PLAYER_COLORS as CORE_PLAYER_COLORS,
 } from '../src/core/index.js';
+import { colorHex, colorVar, PLAYER_COLORS, PLAYER_COLOR_NAMES } from '../public/js/state.js';
 
 const CONFIG = {
   size: 8,
@@ -199,7 +201,7 @@ test('reconexión reubica si la celda está ocupada', () => {
 });
 
 test('generación de spawns invariantes en todos los tamaños y modos', () => {
-  for (const size of [8, 9, 12, 16, 20]) {
+  for (const size of [8, 9, 12, 16]) {
     for (const mode of SPAWN_MODES) {
       for (const playerCount of [2, 4, 8]) {
         const rng = mulberry32(size * 1000 + playerCount * 10 + mode.length);
@@ -275,6 +277,7 @@ test('metas repartidas por el tablero en generaciones con semillas distintas', (
 
 test('errores de configuración del generador', () => {
   assert.throws(() => generateSpawnsAndGoals({ size: 7, playerCount: 2 }), /INVALID_SIZE/);
+  assert.throws(() => generateSpawnsAndGoals({ size: 17, playerCount: 2 }), /INVALID_SIZE/);
   assert.throws(() => generateSpawnsAndGoals({ size: 9, playerCount: 1 }), /INVALID_PLAYER_COUNT/);
   assert.throws(() => generateSpawnsAndGoals({ size: 9, playerCount: 2, mode: 'diagonal' }), /UNKNOWN_MODE/);
 });
@@ -417,4 +420,28 @@ test('presupuestos por defecto y normalización sin INVALID_ATTEMPTS', () => {
     nodeBudget: 1.5,
   });
   assert.deepEqual(base, normalized);
+});
+
+test('paleta de jugadores ofrece 20 colores coherentes y accesibles', () => {
+  const luminance = (hex) => {
+    const channels = [1, 3, 5].map((start) => {
+      const value = parseInt(hex.slice(start, start + 2), 16) / 255;
+      return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+  };
+
+  assert.equal(PLAYER_COLORS.length, 20);
+  assert.equal(PLAYER_COLOR_NAMES.length, PLAYER_COLORS.length);
+  assert.equal(CORE_PLAYER_COLORS.length, PLAYER_COLORS.length);
+  for (const [index, hex] of PLAYER_COLORS.entries()) {
+    assert.match(hex, /^#[0-9A-F]{6}$/);
+    assert.equal(CORE_PLAYER_COLORS[index].hex, hex);
+    assert.ok(1.05 / (luminance(hex) + 0.05) >= 4.5, `${hex} no alcanza contraste 4.5:1`);
+  }
+  assert.equal(colorVar(0), 'var(--color-player-0)');
+  assert.equal(colorVar(19), 'var(--color-player-19)');
+  assert.equal(colorHex(19), PLAYER_COLORS[19]);
+  assert.equal(colorVar(20), 'var(--color-player-0)');
+  assert.equal(colorHex(-1), PLAYER_COLORS[0]);
 });

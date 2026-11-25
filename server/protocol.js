@@ -229,8 +229,8 @@ export function validateConfig(input = {}, options = {}) {
   };
 
   if (Object.hasOwn(input, 'size')) {
-    if (!Number.isInteger(input.size) || input.size < 8 || input.size > 20) {
-      return { ok: false, code: 'INVALID_CONFIG', message: 'El tamaño debe ser un entero entre 8 y 20.' };
+    if (!Number.isInteger(input.size) || input.size < 8 || input.size > 16) {
+      return { ok: false, code: 'INVALID_CONFIG', message: 'El tamaño debe ser un entero entre 8 y 16.' };
     }
     config.size = input.size;
   }

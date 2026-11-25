@@ -3,10 +3,10 @@ import {
   cellKeyXY,
   colorVar,
   coordinateLabel,
-  goalSideFromCell,
   normalizeGoalCell,
-  playerInitial,
 } from './state.js';
+
+const DEFAULT_WALL_HIT_RADIUS = 3;
 
 function toCell(value) {
   if (!value || typeof value !== 'object') return null;
@@ -148,8 +148,6 @@ export class BoardRenderer {
     this.cells = new Map();
     this.anchors = new Map();
     this.pieces = new Map();
-    this.goalMarks = new Map();
-    this.spawnMarks = new Map();
     this.wallEls = new Map();
     this.hintEls = new Map();
     this.legalMoves = new Map();
@@ -160,6 +158,18 @@ export class BoardRenderer {
     this.hints = null;
     this.preview = null;
     this.hoverAnchor = null;
+    this.wallHitRadius = DEFAULT_WALL_HIT_RADIUS;
+    this.refreshWallHitRadius();
+    if (typeof window.matchMedia === 'function') {
+      const query = window.matchMedia('(max-width: 767px)');
+      query.addEventListener?.('change', () => this.refreshWallHitRadius());
+    }
+  }
+
+  refreshWallHitRadius() {
+    const raw = getComputedStyle(this.el).getPropertyValue('--wall-hit-radius');
+    const parsed = Number.parseFloat(raw);
+    this.wallHitRadius = Number.isFinite(parsed) && parsed >= 0 ? parsed : DEFAULT_WALL_HIT_RADIUS;
   }
 
   setHandlers({ onMove, onWall, onRotate, onAnnounce } = {}) {
@@ -183,8 +193,6 @@ export class BoardRenderer {
     this.cells.clear();
     this.anchors.clear();
     this.pieces.clear();
-    this.goalMarks.clear();
-    this.spawnMarks.clear();
     this.wallEls.clear();
     this.size = size;
     this.el.style.setProperty('--board-size', String(size));
@@ -207,8 +215,6 @@ export class BoardRenderer {
         cell.tabIndex = r === 0 && c === 0 ? 0 : -1;
         cell.append(
           decorativeSpan('board__cell-face'),
-          decorativeSpan('board__spawn'),
-          decorativeSpan('board__goal'),
           decorativeSpan('board__move-dot'),
         );
         this.cells.set(this.cellKey(c, r), cell);
@@ -246,9 +252,7 @@ export class BoardRenderer {
     fragment.appendChild(this.preview);
 
     this.el.appendChild(fragment);
-    this.goalMarks.clear();
     this.pieces.clear();
-    this.spawnMarks.clear();
     this.hintEls.clear();
 
     for (const player of players) {
@@ -257,18 +261,6 @@ export class BoardRenderer {
       piece.dataset.playerId = player.id;
       piece.setAttribute('aria-hidden', 'true');
       this.pieces.set(player.id, piece);
-
-      const goal = document.createElement('span');
-      goal.className = 'board__goal-marker';
-      goal.dataset.playerId = player.id;
-      goal.setAttribute('aria-hidden', 'true');
-      this.goalMarks.set(player.id, goal);
-
-      const spawn = document.createElement('span');
-      spawn.className = 'board__spawn-marker';
-      spawn.dataset.playerId = player.id;
-      spawn.setAttribute('aria-hidden', 'true');
-      this.spawnMarks.set(player.id, spawn);
     }
 
     this.playerSignature = players.map((player) => `${player.id}:${player.colorIndex}`).sort().join('|');
@@ -296,7 +288,6 @@ export class BoardRenderer {
     this.computeLegalHints(isMyTurn && this.canAct && !this.pending);
     this.updateCells();
     this.updatePieces();
-    this.updateGoalsAndSpawns();
     this.updateWalls();
     this.refreshWallHints();
     this.refreshWallInteractivity();
@@ -359,6 +350,13 @@ export class BoardRenderer {
       const occupants = pieceByCell.get(key) || [];
       const goals = goalByCell.get(key) || [];
       cell.classList.toggle('has-piece', occupants.length > 0);
+      cell.classList.toggle('is-goal', goals.length > 0);
+      cell.classList.toggle('is-my-goal', goals.some((player) => player.id === this.myId));
+      if (goals.length > 0) {
+        cell.style.setProperty('--player-color', colorVar(goals[0].colorIndex));
+      } else {
+        cell.style.removeProperty('--player-color');
+      }
       cell.classList.toggle('is-legal-move', legal);
       cell.classList.toggle('is-turn-cell', occupants.some((player) => player.id === this.normalized.turnPlayerId));
       const dot = cell.querySelector('.board__move-dot');
@@ -390,7 +388,6 @@ export class BoardRenderer {
         this.pieces.set(player.id, piece);
       }
       if (piece.parentElement !== cell) cell.appendChild(piece);
-      piece.textContent = playerInitial(player.name);
       piece.style.setProperty('--player-color', colorVar(player.colorIndex));
       piece.classList.toggle('is-ghost', player.ghost);
       piece.classList.toggle('is-turn', player.id === this.normalized.turnPlayerId && !player.ghost);
@@ -401,42 +398,6 @@ export class BoardRenderer {
 
     for (const [id, piece] of this.pieces) {
       if (!this.normalized.players.some((player) => player.id === id)) piece.remove();
-    }
-  }
-
-  updateGoalsAndSpawns() {
-    for (const player of this.normalized.players) {
-      const goalCell = this.cells.get(this.cellKey(player.goalCell.c, player.goalCell.r));
-      let goal = this.goalMarks.get(player.id);
-      if (goalCell) {
-        if (!goal) {
-          goal = document.createElement('span');
-          goal.className = 'board__goal-marker';
-          goal.dataset.playerId = player.id;
-          goal.setAttribute('aria-hidden', 'true');
-          this.goalMarks.set(player.id, goal);
-        }
-        if (goal.parentElement !== goalCell) goalCell.appendChild(goal);
-        goal.style.setProperty('--player-color', colorVar(player.colorIndex));
-        const side = goalSideFromCell(player.goalCell, this.normalized.size) || 'center';
-        goal.className = `board__goal-marker board__goal-marker--${side}`;
-        goal.textContent = playerInitial(player.name);
-        goal.title = `Meta de ${player.name}`;
-      }
-
-      const spawnCell = this.cells.get(this.cellKey(player.spawn.c, player.spawn.r));
-      let spawn = this.spawnMarks.get(player.id);
-      if (spawnCell) {
-        if (!spawn) {
-          spawn = document.createElement('span');
-          spawn.className = 'board__spawn-marker';
-          spawn.dataset.playerId = player.id;
-          spawn.setAttribute('aria-hidden', 'true');
-          this.spawnMarks.set(player.id, spawn);
-        }
-        if (spawn.parentElement !== spawnCell) spawnCell.appendChild(spawn);
-        spawn.style.setProperty('--player-color', colorVar(player.colorIndex));
-      }
     }
   }
 
@@ -750,7 +711,7 @@ export class BoardRenderer {
       if (!rect.width || !rect.height) continue;
       const dx = Math.max(rect.left - px, 0, px - rect.right);
       const dy = Math.max(rect.top - py, 0, py - rect.bottom);
-      if (dx > 8 || dy > 8) continue;
+      if (dx > this.wallHitRadius || dy > this.wallHitRadius) continue;
       const centerDistance = Math.hypot(
         px - (rect.left + rect.right) / 2,
         py - (rect.top + rect.bottom) / 2,
@@ -804,8 +765,6 @@ export class BoardRenderer {
     this.cells.clear();
     this.anchors.clear();
     this.pieces.clear();
-    this.goalMarks.clear();
-    this.spawnMarks.clear();
     this.wallEls.clear();
     this.hintEls.clear();
     this.view = null;

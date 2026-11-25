@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Juego web multijugador inspirado en Quoridor (2-8 jugadores, tableros 8x8 a 20x20)",
+  "description": "Juego web multijugador inspirado en Quoridor (2-8 jugadores, tableros 8x8 a 16x16)",
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",

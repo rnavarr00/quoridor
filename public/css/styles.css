@@ -41,6 +41,18 @@
   --color-player-5: #C2410C;
   --color-player-6: #0F766E;
   --color-player-7: #9D174D;
+  --color-player-8: #4338CA;
+  --color-player-9: #A21CAF;
+  --color-player-10: #0E7490;
+  --color-player-11: #4D7C0F;
+  --color-player-12: #854D0E;
+  --color-player-13: #047857;
+  --color-player-14: #0369A1;
+  --color-player-15: #7E22CE;
+  --color-player-16: #78350F;
+  --color-player-17: #334155;
+  --color-player-18: #831843;
+  --color-player-19: #3F6212;
 
   /* Tipografía */
   --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -103,6 +115,7 @@
   /* Tablero */
   --board-gap: 4px;
   --wall-thickness: clamp(6px, 1vmin, 10px);
+  --wall-hit-radius: 3px;
   --board-size: 9;
   --cell-size: 48px;
 }
@@ -1328,6 +1341,12 @@ body[data-screen="game"] .app-main {
   box-shadow: inset 0 0 0 2px rgba(15, 118, 110, 0.45);
 }
 
+.board__cell.is-goal .board__cell-face {
+  background-color: var(--color-cell);
+  background-color: color-mix(in srgb, var(--player-color, var(--color-accent)) 22%, var(--color-cell));
+  box-shadow: inset 0 0 0 2px var(--player-color, var(--color-accent));
+}
+
 .board__cell.is-ghost-cell .board__cell-face {
   background-image: repeating-linear-gradient(
     45deg,
@@ -1348,6 +1367,15 @@ body[data-screen="game"] .app-main {
 .board__cell.is-legal-move:focus-visible .board__cell-face {
   background: #ECFDF5;
   box-shadow: inset 0 0 0 2px var(--color-accent);
+}
+
+.board__cell.is-my-goal .board__cell-face {
+  z-index: 2;
+  background-color: color-mix(in srgb, var(--player-color, var(--color-accent)) 34%, var(--color-cell));
+  box-shadow:
+    0 0 0 2px #FFFFFF,
+    0 0 0 4px var(--color-focus),
+    inset 0 0 0 2px var(--player-color, var(--color-accent));
 }
 
 .board__cell[data-legal="true"] {
@@ -1385,9 +1413,6 @@ body[data-screen="game"] .app-main {
   line-height: 1;
   text-transform: uppercase;
   transform: translate(-50%, -50%);
-  box-shadow:
-    0 1px 2px rgba(15, 23, 42, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.35);
   pointer-events: none;
   transition: box-shadow var(--transition-base);
 }
@@ -1395,19 +1420,7 @@ body[data-screen="game"] .app-main {
 .board__piece.is-turn {
   box-shadow:
     0 0 0 2px #FFFFFF,
-    0 0 0 4px var(--color-focus),
-    0 1px 3px rgba(15, 23, 42, 0.35);
-}
-
-.board__piece.is-self::after {
-  content: "";
-  position: absolute;
-  inset-block-end: -12%;
-  inline-size: 26%;
-  aspect-ratio: 1;
-  border-radius: var(--radius-pill);
-  background: #FFFFFF;
-  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.35);
+    0 0 0 4px var(--color-focus);
 }
 
 .board__piece.is-ghost {
@@ -1419,55 +1432,6 @@ body[data-screen="game"] .app-main {
     transparent 3px 8px
   );
   filter: grayscale(0.3);
-}
-
-.board__goal-marker {
-  position: absolute;
-  inset: 4px;
-  z-index: 1;
-  display: grid;
-  place-items: center;
-  border: 2px solid var(--player-color, var(--color-accent));
-  border-radius: var(--radius-sm);
-  color: var(--player-color, var(--color-accent));
-  font-size: clamp(7px, 1.3vmin, 15px);
-  font-weight: var(--font-weight-bold);
-  line-height: 1;
-  opacity: 0.85;
-  pointer-events: none;
-}
-
-.board__goal-marker--top {
-  border-block-start-width: 6px;
-}
-
-.board__goal-marker--bottom {
-  border-block-end-width: 6px;
-}
-
-.board__goal-marker--left {
-  border-inline-start-width: 6px;
-}
-
-.board__goal-marker--right {
-  border-inline-end-width: 6px;
-}
-
-.board__goal-marker--center {
-  border-style: dashed;
-}
-
-.board__spawn-marker {
-  position: absolute;
-  inset-block-end: 9%;
-  inset-inline-end: 9%;
-  z-index: 2;
-  inline-size: 16%;
-  aspect-ratio: 1;
-  border: 2px solid var(--player-color, var(--color-accent));
-  border-radius: var(--radius-pill);
-  opacity: 0.4;
-  pointer-events: none;
 }
 
 /* Anclas de pared */
@@ -1491,7 +1455,7 @@ body[data-screen="game"] .app-main {
 .board__anchor.is-legal::after {
   content: "";
   position: absolute;
-  inset: calc(var(--wall-thickness) * -2.5);
+  inset: calc(var(--wall-hit-radius) * -1);
   border-radius: var(--radius-pill);
   transition: background-color var(--transition-fast);
 }
@@ -1517,7 +1481,7 @@ body[data-screen="game"] .app-main {
   border-radius: var(--radius-pill);
   background: rgba(15, 118, 110, 0.16);
   cursor: pointer;
-  pointer-events: auto;
+  pointer-events: none;
   transition:
     background-color var(--transition-fast),
     box-shadow var(--transition-fast);
@@ -2444,6 +2408,7 @@ html[data-patterns="on"] .player-row--ghost {
     --panel-width: 100%;
     --board-gap: 3px;
     --wall-thickness: clamp(5px, 1.2vmin, 8px);
+  --wall-hit-radius: 4px;
   }
 
   body {

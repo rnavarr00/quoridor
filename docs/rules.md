@@ -1,7 +1,7 @@
 # Reglas del motor de Quoridor (2–8 jugadores)
 
 > Documento normativo y autosuficiente. Describe el **motor puro** (sin red, sin timers,
-> sin sockets) de una variante de Quoridor para 2 a 8 jugadores sobre tableros de 8x8 a 20x20.
+> sin sockets) de una variante de Quoridor para 2 a 8 jugadores sobre tableros de 8x8 a 16x16.
 > Los identificadores de código están en inglés; la prosa, en español. Cualquier implementación
 > que cumpla este contrato debe producir exactamente los mismos estados, eventos y errores.
 
@@ -33,7 +33,7 @@ correspondiente de este documento.
 
 | Decisión | Valor canónico | Referencia |
 |---|---|---|
-| `size` | entero `8 .. 20` (default `9`) | §1.3, §1.5 |
+| `size` | entero `8 .. 16` (default `9`) | §1.3, §1.5 |
 | `playerCount` | entero `2 .. 8` (default `2`) | §1.5 |
 | `wallsPerPlayer` | `10` por defecto | §1.5 |
 | `turnSeconds` | entero fijo `30`; otro valor => `INVALID_CONFIG` | §1.5, §9 |
@@ -167,7 +167,7 @@ interface GameConfig {
 
 | Campo | Por defecto | Rango válido |
 |---|---|---|
-| `size` | `9` | `8 .. 20` |
+| `size` | `9` | `8 .. 16` |
 | `playerCount` | `2` | `2 .. 8` |
 | `wallsPerPlayer` | `10` | `0 .. 20` |
 | `spawnMode` | `'random'` | `'random' | 'central' | 'perimeter'` |
@@ -1007,7 +1007,7 @@ cuando el caso los necesita.
 | 27 | Inventario 0 | `wallsPerPlayer=0` | `placeWall(P,'H',0,0)` | sin cambio | `NO_WALLS_LEFT` |
 | 28 | Jugar tras terminar | partida `finished` | `move(P0,(4,5))` | sin cambio | `GAME_FINISHED` |
 | 29 | Tablero mínimo 8x8 | `size=8` | movimiento y pared válidos | `MOVE`/`WALL_PLACED` | — |
-| 30 | Tablero máximo 20x20 | `size=20` | BFS y movimiento válidos | `MOVE`, `hasPath=true` | — |
+| 30 | Tablero máximo 16x16 | `size=16` | BFS y movimiento válidos | `MOVE`, `hasPath=true` | — |
 | 31 | 8 jugadores | `playerCount=8` | recorrido completo de turnos | 8 turnos por ronda, sin saltos | — |
 | 32 | Auto-move simple | P0 con varias salidas | `autoMove(P0,rngFijo)` | `MOVE` determinista | — |
 | 33 | Timeout simulado | turno de P0, 30 s (fuera) | `autoMove(P0,rngFijo)` | mismo resultado que test 32 | — |

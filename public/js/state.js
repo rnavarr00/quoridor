@@ -17,7 +17,7 @@ export const SCREENS = Object.freeze([
 ]);
 
 export const LIMITS = Object.freeze({
-  size: { min: 8, max: 20 },
+  size: { min: 8, max: 16 },
   players: { min: 2, max: 8 },
   walls: { min: 0, max: 20 },
   alias: { min: 2, max: 16 },
@@ -66,6 +66,29 @@ export const GOAL_SIDE_LABELS = Object.freeze({
   right: 'lado derecho',
 });
 
+export const PLAYER_COLOR_NAMES = Object.freeze([
+  'Rojo',
+  'Azul',
+  'Verde',
+  'Ámbar',
+  'Violeta',
+  'Naranja',
+  'Teal',
+  'Rosa',
+  'Indigo',
+  'Fucsia',
+  'Cian',
+  'Lima',
+  'Mostaza',
+  'Esmeralda',
+  'Celeste',
+  'Púrpura',
+  'Marrón',
+  'Pizarra',
+  'Granate',
+  'Oliva',
+]);
+
 export const PLAYER_COLORS = Object.freeze([
   '#B91C1C',
   '#1D4ED8',
@@ -75,15 +98,29 @@ export const PLAYER_COLORS = Object.freeze([
   '#C2410C',
   '#0F766E',
   '#9D174D',
+  '#4338CA',
+  '#A21CAF',
+  '#0E7490',
+  '#4D7C0F',
+  '#854D0E',
+  '#047857',
+  '#0369A1',
+  '#7E22CE',
+  '#78350F',
+  '#334155',
+  '#831843',
+  '#3F6212',
 ]);
 
+const MAX_COLOR_INDEX = PLAYER_COLORS.length - 1;
+
 export function colorVar(colorIndex) {
-  const index = Number.isInteger(colorIndex) && colorIndex >= 0 && colorIndex <= 7 ? colorIndex : 0;
+  const index = Number.isInteger(colorIndex) && colorIndex >= 0 && colorIndex <= MAX_COLOR_INDEX ? colorIndex : 0;
   return `var(--color-player-${index})`;
 }
 
 export function colorHex(colorIndex) {
-  const index = Number.isInteger(colorIndex) && colorIndex >= 0 && colorIndex <= 7 ? colorIndex : 0;
+  const index = Number.isInteger(colorIndex) && colorIndex >= 0 && colorIndex <= MAX_COLOR_INDEX ? colorIndex : 0;
   return PLAYER_COLORS[index];
 }
 

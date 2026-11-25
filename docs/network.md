@@ -267,7 +267,7 @@ Room {
 Player {
   id: string
   alias: string
-  colorIndex: number                 // 0..7
+  colorIndex: number                 // 0..19
   sessionToken: string               // secreto, nunca público
   socket: WebSocket | null
   connected: boolean
@@ -298,7 +298,7 @@ El estado interno no se serializa directamente. `Room.getLobbySnapshot()` y `Roo
 
 | Campo | Tipo | Default | Rango / valores | Editable por host |
 |---|---|---|---:|---|
-| `size` | entero | `12` | 8..20 | Sí, solo en lobby |
+| `size` | entero | `12` | 8..16 | Sí, solo en lobby |
 | `maxPlayers` | entero | `4` | 2..8 | Sí, solo en lobby |
 | `wallsPerPlayer` | entero | `10` | 0..20 | Sí, solo en lobby |
 | `spawnMode` | string | `"random"` | `random` \| `central` \| `perimeter` | Sí, solo en lobby |
@@ -339,7 +339,7 @@ Validaciones:
 
 ### 3.5 Asientos y colores
 
-- `colorIndex` ∈ 0..7, asignado al entrar en el lobby al menor índice libre.
+- `colorIndex` ∈ 0..19, asignado al entrar en el lobby al menor índice libre.
 - Durante el lobby se compacta al salir un jugador (se libera su índice y puede reutilizarse).
 - Al comenzar la partida, los índices quedan congelados y determinan el orden de turno y la paleta.
 - Los fantasmas conservan su `colorIndex` y asiento.
@@ -564,7 +564,7 @@ Los mensajes `server.roomCreated`, `server.roomJoined`, `server.roomUpdate`, `se
 
 ```text
 Config = {
-  size: integer 8..20,
+  size: integer 8..16,
   maxPlayers: integer 2..8,
   wallsPerPlayer: integer 0..20,
   spawnMode: "random" | "central" | "perimeter",
@@ -574,7 +574,7 @@ Config = {
 RoomPlayer = {
   id: string,
   name: string,
-  colorIndex: integer 0..7,
+  colorIndex: integer 0..19,
   isHost: boolean,
   connected: boolean,
   ghost: boolean
@@ -942,11 +942,11 @@ En el segundo turno inválido acumulado se envía además `server.toast` y `serv
 
 | Campo | Tipo | Descripción |
 |---|---|---|
-| `board.size` | entero 8..20 | Tamaño del tablero cuadrado. |
+| `board.size` | entero 8..16 | Tamaño del tablero cuadrado. |
 | `players` | array | Todos los jugadores históricos de la partida, ordenados por `colorIndex`; incluye fantasmas. |
 | `players[].id` | UUID | Identificador del jugador. |
 | `players[].name` | string | Alias efectivo (con sufijo si hubo colisión). |
-| `players[].colorIndex` | 0..7 | Asiento/color; congelado al iniciar. |
+| `players[].colorIndex` | 0..19 | Asiento/color; congelado al iniciar. |
 | `players[].pos` | `{x,y}` | Posición actual o última posición conocida si es fantasma. |
 | `players[].goal` | `{side,index,x,y}` | Meta: lado (`top`/`bottom`/`left`/`right`) o `any` si es interior; `index` de fila/columna y coordenadas `x`/`y` de la celda. |
 | `players[].spawn` | `{x,y}` | Celda de origen asignada por el motor. |

@@ -19,7 +19,7 @@ El generador es independiente de la interfaz, de los colores, de los asientos y 
 
 Rango soportado:
 
-- `size` entero, `8 <= size <= 20`.
+- `size` entero, `8 <= size <= 16`.
 - `playerCount` entero, `2 <= playerCount <= 8`.
 - El número de jugadores es exactamente `n = playerCount`; no se genera siempre una partida de 8.
 
@@ -110,11 +110,11 @@ clamp(x, lo, hi) = min(hi, max(lo, x))
 round(x)         = Math.round(x)   // redondeo al entero más cercano
 ```
 
-En el rango `8..20` el clamp inferior nunca actúa, porque `round(0.6*size) >= 5`. El clamp superior tampoco actúa, porque para `size >= 5` se cumple `0.6*size <= 2*size-2`. Aun así se mantiene el clamp para que la fórmula sea segura fuera del rango nominal.
+En el rango `8..16` el clamp inferior nunca actúa, porque `round(0.6*size) >= 5`. El clamp superior tampoco actúa, porque para `size >= 5` se cumple `0.6*size <= 2*size-2`. Aun así se mantiene el clamp para que la fórmula sea segura fuera del rango nominal.
 
-`D` debe ser un entero. En el rango `8..20` no aparecen empates exactos de `.5`, por lo que el redondeo es estable.
+`D` debe ser un entero. En el rango `8..16` no aparecen empates exactos de `.5`, por lo que el redondeo es estable.
 
-### 2.2 Tabla para `size = 8..20`
+### 2.2 Tabla para `size = 8..16`
 
 | `size` | `0.6*size` | `round` | `D` | `2*(size-1)` | Zona central `lo..hi` | Celdas perímetro | Celdas del diamante teórico |
 |---:|---:|---:|---:|---:|---|---:|---:|
@@ -127,10 +127,6 @@ En el rango `8..20` el clamp inferior nunca actúa, porque `round(0.6*size) >= 5
 | 14 | 8.4 | 8 | 8 | 26 | 3..10 | 48 | 145 |
 | 15 | 9.0 | 9 | 9 | 28 | 3..11 | 52 | 181 |
 | 16 | 9.6 | 10 | 10 | 30 | 4..11 | 56 | 221 |
-| 17 | 10.2 | 10 | 10 | 32 | 4..12 | 60 | 221 |
-| 18 | 10.8 | 11 | 11 | 34 | 4..13 | 64 | 265 |
-| 19 | 11.4 | 11 | 11 | 36 | 4..14 | 68 | 265 |
-| 20 | 12.0 | 12 | 12 | 38 | 5..14 | 72 | 313 |
 
 Ejemplos focales de la fórmula canónica `D = clamp(round(0.6 * size), 2, 2*(size-1))` con `d1` Manhattan:
 
@@ -140,7 +136,6 @@ Ejemplos focales de la fórmula canónica `D = clamp(round(0.6 * size), 2, 2*(si
 | 9 | 5.4 | 5 | 5 |
 | 12 | 7.2 | 7 | 7 |
 | 16 | 9.6 | 10 | 10 |
-| 20 | 12.0 | 12 | 12 |
 
 Notas:
 
@@ -394,10 +389,6 @@ La capacidad de cada modo depende solo de `size`, no de `n`. La tabla siguiente 
 | 14 | 196 | 196 | 48 | 8 | 64 | 48 | Sí |
 | 15 | 225 | 225 | 52 | 9 | 81 | 52 | Sí |
 | 16 | 256 | 256 | 56 | 8 | 64 | 56 | Sí |
-| 17 | 289 | 289 | 60 | 9 | 81 | 60 | Sí |
-| 18 | 324 | 324 | 64 | 10 | 100 | 64 | Sí |
-| 19 | 361 | 361 | 68 | 11 | 121 | 68 | Sí |
-| 20 | 400 | 400 | 72 | 10 | 100 | 72 | Sí |
 
 Demostración de suficiencia para todo el rango nominal:
 
@@ -762,7 +753,7 @@ function validateConfig(
   playerCount: number,
   mode: SpawnMode
 ): void {
-  if (!Number.isInteger(size) || size < 8 || size > 20) {
+  if (!Number.isInteger(size) || size < 8 || size > 16) {
     throw new InvalidConfigError('INVALID_SIZE', { size });
   }
   if (
@@ -906,7 +897,7 @@ export class InvalidConfigError extends Error {
 
 | Error | Código | Cuándo se lanza | Qué debe hacer el servidor |
 |---|---|---|---|
-| `InvalidConfigError` | `INVALID_SIZE` | `size` no entero o fuera de `8..20`. | Rechazar la creación con `400`, toast de validación, no crear sala. |
+| `InvalidConfigError` | `INVALID_SIZE` | `size` no entero o fuera de `8..16`. | Rechazar la creación con `400`, toast de validación, no crear sala. |
 | `InvalidConfigError` | `INVALID_PLAYER_COUNT` | `playerCount` no entero o fuera de `2..8`. | Rechazar la creación con `400`, toast de validación, no crear sala. |
 | `InvalidConfigError` | `UNKNOWN_MODE` | `mode` no registrado en la fábrica. | Rechazar la creación con `400`, toast "modo no soportado", no crear sala. |
 | `SpawnGenerationError` | `INSUFFICIENT_CANDIDATES` | El universo de una estrategia tiene menos de `n` celdas. Defensivo: no ocurre en el rango nominal. | Rechazar con `422`, toast "configuración no soportada", no crear sala ni modificar estado existente. |
@@ -1065,7 +1056,7 @@ A partir de ahí, `assignColorIndex` ordena los spawns por fila y columna. El or
 | `size = 8`, `n = 8`, `random` | Universo de 64 celdas; 8 spawns únicos; `D = 5`. |
 | `size = 8`, `n = 8`, `perimeter` | Universo de 24 celdas; 8 spawns únicos del borde sin esquinas; `D = 5`; nunca `INSUFFICIENT_CANDIDATES`. |
 | `size = 8`, `n = 8`, `central` | Universo de 16 celdas (`2..5`); 8 spawns únicos; margen suficiente. |
-| `size = 20`, `n = 8` | `D = 12`; perímetro 72 y central 100; holgura amplia. |
+| `size = 16`, `n = 8` | `D = 10`; perímetro 56 y central 64; holgura amplia. |
 | Goals en esquinas | Permitido. I7 solo prohíbe que un goal coincida con un spawn. El ejemplo de 5.5 usa `(0,0)` como goal. |
 | Spawn en esquina | Permitido en `random`; prohibido en `perimeter` (I10). `central` tampoco incluye esquinas. |
 | `D` cerca del máximo | `D_max = 2*(size-1)` solo lo alcanzan pares de esquinas opuestas. Con `n > 2` no hay matching posible; el fallback baja la distancia y marca `relaxed = true`. En `perimeter`, como los spawns no pueden ser esquinas, `D_max` es directamente inalcanzable y también se relaja. |
@@ -1100,9 +1091,9 @@ Todas las filas con `seed` numérica son deterministas. Las celdas marcadas **go
 | 8 | 13 | 8 | `central` | `7` | 8 | 8/8 dentro de `3..9`; `d1 = 8`; sin solape. |
 | 9 | 15 | 7 | `random` | `555` | 9 | 7/7; `d1 = 9`; sin solape; `relaxed` y `attempts` golden. |
 | 10 | 16 | 8 | `random` | `2026` | 10 | 8/8; `d1 = 10`; sin solape; `relaxed` y `attempts` golden. |
-| 11 | 17 | 8 | `perimeter` | `9` | 10 | 8/8 desde 60 candidatos; `d1 = 10`; sin solape. |
-| 12 | 20 | 8 | `perimeter` | `123` | 12 | 8/8 desde 72 candidatos; `d1 = 12`; sin solape. |
-| 13 | 20 | 2 | `central` | `0` | 12 | 2/2 dentro de `5..14`; `d1 = 12`; sin solape. |
+| 11 | 16 | 8 | `perimeter` | `9` | 10 | 8/8 desde 56 candidatos; `d1 = 10`; sin solape. |
+| 12 | 16 | 8 | `perimeter` | `123` | 10 | 8/8 desde 56 candidatos; `d1 = 10`; sin solape. |
+| 13 | 16 | 2 | `central` | `0` | 10 | 2/2 dentro de `4..11`; `d1 = 10`; sin solape. |
 | 14 | 8 | 8 | `random` | `1` | 5 | 8/8 desde 64 celdas; `d1 = 5`; uniformidad verificada por propiedades estadísticas, no por una salida única. |
 | 15 | 8 | 2 | `central` | `2` | 5 | 2/2 dentro de `2..5`; `d1 = 5`; sin solape; `relaxed` y `attempts` golden. |
 | 16 | 12 | 4 | `random` | `1..200` | 7 | 4 goals por semilla con cobertura de filas, columnas, bordes y zona interior; `d1 = 7`; sin solape. |
@@ -1112,7 +1103,7 @@ Todas las filas con `seed` numérica son deterministas. Las celdas marcadas **go
 Con fast-check o con bucles deterministas sobre semillas fijas, comprobar para toda configuración válida:
 
 ```ts
-for (const size of range(8, 20)) {
+for (const size of range(8, 16)) {
   for (const n of range(2, 8)) {
     for (const mode of ['random', 'central', 'perimeter'] as const) {
       const seed = 1000 + size * 100 + n;
@@ -1172,7 +1163,7 @@ Propiedades a cubrir:
 | Entrada | Error esperado |
 |---|---|
 | `size = 7` | `InvalidConfigError` con `code = 'INVALID_SIZE'`. |
-| `size = 21` | `InvalidConfigError` con `code = 'INVALID_SIZE'`. |
+| `size = 17` | `InvalidConfigError` con `code = 'INVALID_SIZE'`. |
 | `size = 8.5` | `InvalidConfigError` con `code = 'INVALID_SIZE'`. |
 | `n = 1` | `InvalidConfigError` con `code = 'INVALID_PLAYER_COUNT'`. |
 | `n = 9` | `InvalidConfigError` con `code = 'INVALID_PLAYER_COUNT'`. |

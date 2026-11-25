@@ -202,7 +202,7 @@ export function generateSpawnsAndGoals(options = {}) {
     ? options.nodeBudget
     : DEFAULT_NODE_BUDGET;
 
-  if (!Number.isInteger(size) || size < 8 || size > 20) {
+  if (!Number.isInteger(size) || size < 8 || size > 16) {
     throw new InvalidConfigError('INVALID_SIZE', { size });
   }
   if (!Number.isInteger(playerCount) || playerCount < 2 || playerCount > 8) {
