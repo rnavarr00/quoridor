@@ -7,108 +7,75 @@ import {
   sameCell,
 } from './board.js';
 
-const PERPENDICULAR = {
-  N: ['E', 'W'],
-  S: ['E', 'W'],
-  E: ['N', 'S'],
-  W: ['N', 'S'],
-};
-
-const DIRECTION_BY_NAME = Object.fromEntries(DIRECTIONS.map((dir) => [dir.name, dir]));
-
-function addMove(moves, seen, playerId, to, kind, over) {
-  const key = cellKey(to);
-  if (seen.has(key)) return;
-  seen.add(key);
-  moves.push({ to, kind, over, playerId });
-}
-
-function computeSimpleMoves(state, player, moves, seen) {
+function computeBaseMoves(state, player) {
   const { size } = state.config;
+  const moves = new Map();
   for (const dir of DIRECTIONS) {
     const to = { r: player.pos.r + dir.dr, c: player.pos.c + dir.dc };
     if (!inBounds(to, size)) continue;
     if (isEdgeBlocked(state.walls, player.pos, to)) continue;
     if (activePlayerAt(state.players, to, player.id)) continue;
-    addMove(moves, seen, player.id, to, 'step', []);
+    moves.set(cellKey(to), { to, kind: 'step', over: [], via: null });
   }
+  return moves;
 }
 
-function tryStraightChain(state, player, dir) {
-  const { size } = state.config;
-  let current = player.pos;
-  const over = [];
-  for (;;) {
-    const next = { r: current.r + dir.dr, c: current.c + dir.dc };
-    if (!inBounds(next, size)) return { over, landing: null, reason: 'boundary' };
-    if (isEdgeBlocked(state.walls, current, next)) return { over, landing: null, reason: 'wall' };
-    const occupant = activePlayerAt(state.players, next, player.id);
-    if (occupant) {
-      over.push(next);
-      current = next;
-      continue;
-    }
-    return { over, landing: next, reason: null };
-  }
+function activePlayers(state) {
+  return state.players
+    .filter((player) => !player.ghost && player.connected !== false)
+    .sort((a, b) => a.colorIndex - b.colorIndex);
 }
 
-function tryLJump(state, player, firstPawn, dir) {
-  const { size } = state.config;
-  const results = [];
-  const perpendicular = PERPENDICULAR[dir.name];
-  for (const perpendicularName of perpendicular) {
-    const pdir = DIRECTION_BY_NAME[perpendicularName];
-    const corner = { r: player.pos.r + pdir.dr, c: player.pos.c + pdir.dc };
-    const target = { r: firstPawn.r + pdir.dr, c: firstPawn.c + pdir.dc };
-    if (!inBounds(corner, size) || !inBounds(target, size)) continue;
-    if (activePlayerAt(state.players, corner, player.id)) continue;
-    if (activePlayerAt(state.players, target, player.id)) continue;
-    if (isEdgeBlocked(state.walls, player.pos, corner)) continue;
-    if (isEdgeBlocked(state.walls, corner, target)) continue;
-    results.push(target);
-  }
-  return results;
-}
-
-function computeJumpMoves(state, player, moves, seen) {
-  const { size } = state.config;
+function adjacentPlayers(state, player, players, size) {
+  const neighbors = [];
   for (const dir of DIRECTIONS) {
-    const first = { r: player.pos.r + dir.dr, c: player.pos.c + dir.dc };
-    if (!inBounds(first, size)) continue;
-    const firstPawn = activePlayerAt(state.players, first, player.id);
-    if (!firstPawn) continue;
-    if (isEdgeBlocked(state.walls, player.pos, first)) continue;
+    const cell = { r: player.pos.r + dir.dr, c: player.pos.c + dir.dc };
+    if (!inBounds(cell, size)) continue;
+    const neighbor = players.find((entry) => entry.id !== player.id && sameCell(entry.pos, cell));
+    if (neighbor) neighbors.push(neighbor);
+  }
+  return neighbors;
+}
 
-    const chain = tryStraightChain(state, player, dir);
-    if (chain.landing) {
-      addMove(
-        moves,
-        seen,
-        player.id,
-        chain.landing,
-        chain.over.length > 1 ? 'chain' : 'straight',
-        chain.over,
-      );
-      continue;
-    }
+function computeSharedMoves(state) {
+  const { size } = state.config;
+  const players = activePlayers(state);
+  const movesByPlayer = new Map();
+  const neighborsByPlayer = new Map();
 
-    if (chain.over.length === 1 && (chain.reason === 'wall' || chain.reason === 'boundary')) {
-      for (const target of tryLJump(state, player, first, dir)) {
-        addMove(moves, seen, player.id, target, 'L', [first]);
+  for (const player of players) {
+    movesByPlayer.set(player.id, computeBaseMoves(state, player));
+    neighborsByPlayer.set(player.id, adjacentPlayers(state, player, players, size));
+  }
+
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const player of players) {
+      const own = movesByPlayer.get(player.id);
+      for (const neighbor of neighborsByPlayer.get(player.id)) {
+        for (const [key, move] of movesByPlayer.get(neighbor.id)) {
+          if (own.has(key)) continue;
+          own.set(key, { to: move.to, kind: 'inherited', over: [], via: neighbor.id });
+          changed = true;
+        }
       }
     }
   }
+
+  return movesByPlayer;
+}
+
+function toMoveList(moves, playerId) {
+  return [...moves.values()].map((move) => ({ ...move, playerId }));
 }
 
 export function computeLegalMoves(state, playerId, options = {}) {
   const player = state.players.find((entry) => entry.id === playerId);
   if (!player || player.ghost || state.status !== 'playing') return [];
   if (state.turnPlayerId && state.turnPlayerId !== playerId) return [];
-  const moves = [];
-  const seen = new Set();
-  computeSimpleMoves(state, player, moves, seen);
-  if (!options.simple) computeJumpMoves(state, player, moves, seen);
-  return moves;
+  if (options.simple) return toMoveList(computeBaseMoves(state, player), playerId);
+  return toMoveList(computeSharedMoves(state).get(playerId) || new Map(), playerId);
 }
 
 export function findMove(state, playerId, to, options = {}) {

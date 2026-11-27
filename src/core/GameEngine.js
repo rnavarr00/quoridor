@@ -229,8 +229,9 @@ export class GameEngine {
         playerId: player.id,
         from,
         to: { ...player.pos },
-        over: move.over.map((entry) => ({ ...entry })),
-        kind: move.kind,
+        over: [],
+        kind: 'inherited',
+        via: move.via,
       });
     }
 

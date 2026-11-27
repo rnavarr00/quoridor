@@ -21,7 +21,7 @@ Resumen normativo para los subagentes de UI y CSS. Si el resto del documento ent
 Este documento es el contrato de la capa de presentación. No redefine el protocolo ni las reglas:
 
 - Protocolo, mensajes, estados de sala, reconexión y errores: [`docs/network.md`](./network.md).
-- Reglas de movimiento, saltos, paredes y camping: [`docs/rules.md`](./rules.md).
+- Reglas de movimiento, movimientos heredados, paredes y camping: [`docs/rules.md`](./rules.md).
 - Spawns y metas: [`docs/spawns.md`](./spawns.md).
 
 > **Regla de oro:** la UI no implementa reglas. Renderiza estado, captura intenciones y delega.
@@ -45,7 +45,7 @@ Este documento es el contrato de la capa de presentación. No redefine el protoc
   - Sin paso de build obligatorio.
   - Estado de vista explícito, funciones pequeñas y renderizado incremental.
 - **Sin lógica de reglas en la UI:**
-  - La UI no calcula adyacencia, saltos, caminos, solapamientos ni `PATH_BLOCKED`.
+  - La UI no calcula adyacencia, herencia de movimientos, caminos, solapamientos ni `PATH_BLOCKED`.
   - Las ayudas visuales se obtienen llamando a `src/core` con el último snapshot autoritativo.
   - Cualquier acción enviada al servidor es una intención; el servidor decide.
 - **Separación estricta de módulos:**
@@ -366,7 +366,7 @@ Contenido mínimo:
 | Objetivo | Alcanzar tu celda meta asignada antes que los demás; puede estar en cualquier casilla, también en el interior del tablero. |
 | Turno | En cada turno se elige **una** acción: mover la ficha o colocar una pared. |
 | Movimiento | Movimiento ortogonal a una celda adyacente libre. |
-| Saltos | Si hay una ficha adyacente, se puede saltar si la celda de detrás está libre; las reglas completas están en `docs/rules.md`. |
+| Movimientos heredados | Si tu ficha toca a otra, puedes usar también sus movimientos y los de las fichas conectadas a ella; las reglas completas están en `docs/rules.md`. |
 | Paredes | Bloquean el paso; no pueden dejar a un jugador activo sin camino a su meta. Se alternan H/V. |
 | Camping | No se permite pasar el turno quedándose en la misma celda; el servidor rechaza `CAMPING_MUST_MOVE`. |
 | Temporizador | 30 s por turno; al expirar, el servidor mueve automáticamente si es posible. |
@@ -882,7 +882,7 @@ Posicionamiento exacto de paredes (coordenadas 1-based de CSS Grid, según `boar
   - El jugador local es el jugador del turno (`turnPlayerId === playerId`).
   - El jugador local está activo (`connected && !ghost`).
   - No hay reconexión, overlay bloqueante ni acción pendiente.
-- La lista de destinos se obtiene de `src/core` a partir del último snapshot autoritativo. La UI no calcula adyacencia, saltos ni bloqueos.
+- La lista de destinos se obtiene de `src/core` a partir del último snapshot autoritativo. La UI no calcula adyacencia, herencia de movimientos ni bloqueos.
 - Representación:
   - Punto centrado de 28–32 % del tamaño de la celda, color del jugador.
   - Hover: halo/anillo; foco: anillo de foco visible; click: envía `client.move`.
@@ -1810,7 +1810,7 @@ Notas:
 ## 16. Referencias cruzadas
 
 - [`docs/network.md`](./network.md): protocolo, estados de conexión y sala, mensajes `client.*`/`server.*`, errores, reconexión, fantasmas, timeout, revancha y forma exacta del estado público.
-- [`docs/rules.md`](./rules.md): reglas de movimiento, saltos, paredes, caminos, metas, camping y condiciones de victoria. La UI no las reimplementa.
+- [`docs/rules.md`](./rules.md): reglas de movimiento, movimientos heredados, paredes, caminos, metas, camping y condiciones de victoria. La UI no las reimplementa.
 - [`docs/spawns.md`](./spawns.md): generación de spawns y metas, modos `random`/`central`/`perimeter`, distancias y asignación. La UI solo renderiza `spawn` y `goal`.
 - `src/core`: motor puro usado para pass-and-play y para obtener sugerencias de legalidad en online; nunca sustituye la autoridad del servidor.
 - `src/net`: transporte WebSocket y mapeo del protocolo; no contiene DOM ni reglas.

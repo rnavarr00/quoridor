@@ -16,7 +16,7 @@ reglas aquí definidas.
 2. [Estado serializable `GameState` y `PublicGameState`](#2-estado-serializable-gamestate-y-publicgamestate)
 3. [Turnos y acciones](#3-turnos-y-acciones)
 4. [Movimiento ortogonal](#4-movimiento-ortogonal)
-5. [Saltos](#5-saltos)
+5. [Movimiento compartido](#5-movimiento-compartido)
 6. [Metas y camping](#6-metas-y-camping)
 7. [Paredes](#7-paredes)
 8. [Pathfinding](#8-pathfinding)
@@ -331,7 +331,7 @@ type ActionResult =
 | `GAME_FINISHED` | `status === 'finished'`; no se aceptan acciones. |
 | `PLAYER_GHOST` | El jugador es fantasma; no puede actuar. |
 | `OUT_OF_BOARD` | Destino fuera del tablero. |
-| `NOT_ADJACENT` | Destino no alcanzable por paso simple ni salto válido. |
+| `NOT_ADJACENT` | Destino no alcanzable por movimiento propio ni heredado. |
 | `CELL_OCCUPIED` | Destino ocupado por una ficha **activa**. |
 | `NO_WALLS_LEFT` | `wallsLeft === 0`. |
 | `WALL_OUT_OF_BOUNDS` | Ancla `(x, y)` fuera de `0 .. size-2`. |
@@ -355,7 +355,7 @@ El orden es **normativo**: el primer error que se cumple es el que se devuelve.
 4. `PLAYER_GHOST`.
 5. `OUT_OF_BOARD`.
 6. `CELL_OCCUPIED` (destino con ficha activa; los fantasmas no cuentan).
-7. `NOT_ADJACENT` (no es paso simple ni salto válido, ver §4 y §5).
+7. `NOT_ADJACENT` (no es movimiento propio ni heredado, ver §4 y §5).
 8. `CAMPING_FORCED_MOVE` (jugador en camping intentando terminar en la misma meta ajena).
 
 **`placeWall`:**
@@ -380,7 +380,7 @@ El orden es **normativo**: el primer error que se cumple es el que se devuelve.
 ```ts
 type GameEvent =
   | { type: 'MOVE';          playerId: string; from: Cell; to: Cell; path: Cell[] }
-  | { type: 'JUMP';          playerId: string; from: Cell; to: Cell; over: Cell[]; kind: 'straight' | 'chain' | 'L' }
+  | { type: 'JUMP';          playerId: string; from: Cell; to: Cell; over: Cell[]; kind: 'inherited'; via: string }
   | { type: 'WALL_PLACED';   playerId: string; wall: Wall; wallsLeft: number }
   | { type: 'CAMPING_ENTERED'; playerId: string; goalOwnerId: string; pos: Cell }
   | { type: 'CAMPING_FORCED'; playerId: string; pos: Cell; hadLegalExit: boolean }
@@ -392,7 +392,7 @@ type GameEvent =
 | Evento | Cuándo se emite |
 |---|---|
 | `MOVE` | Paso ortogonal simple. `path` = `[from, to]`. |
-| `JUMP` | Salto recto, cadena recta o salto en L. `over` = fichas saltadas. |
+| `JUMP` | Movimiento heredado de una ficha vecina. `via` = id del vecino; `over` = `[]`. |
 | `WALL_PLACED` | Pared válida colocada. `wallsLeft` es el inventario resultante. |
 | `CAMPING_ENTERED` | El jugador aterriza en la meta de otro. |
 | `CAMPING_FORCED` | En el turno forzado de un camper; `hadLegalExit` indica si tenía salida. |
@@ -452,161 +452,120 @@ Al aterrizar en `to`:
 
 ---
 
-## 5. Saltos
+## 5. Movimiento compartido
 
-Los saltos permiten superar fichas **activas** adyacentes. Los **fantasmas no se saltan**:
-se atraviesan como celda libre (es decir, nunca participan como obstáculo de salto).
+El motor **no implementa saltos propios**: no hay salto recto, cadena recta ni salto en L.
+En su lugar, una ficha activa puede usar los movimientos legales de las fichas activas
+**vecinas**, y la regla es **transitiva**: si j1 es vecina de j2 y j2 de j3, j1 también puede
+usar los movimientos de j3. En la práctica, cualquier ficha de un grupo conectado puede
+alcanzar cualquier celda libre vecina de cualquier ficha del grupo.
 
-### 5.1 Salto recto
+### 5.1 Movimientos base
 
-Desde `pos = P`, dirección `d` (N/S/E/O). Sea `O = P + d` la celda adyacente.
+Para cada ficha activa `p`, su conjunto base `Base(p)` contiene los destinos ortogonales
+`p.pos + d` que:
 
-Salto recto a `L = O + d` es legal si:
+1. están dentro del tablero,
+2. no están separados de `p.pos` por una pared, y
+3. no contienen una ficha **activa** (los fantasmas son transitables y pueden ser destino).
 
-1. `O` contiene una ficha **activa**.
-2. `L` está dentro del tablero.
-3. `NSEdge`/`EWEdge` entre `P` y `O` **no** está bloqueada.
-4. `NSEdge`/`EWEdge` entre `O` y `L` **no** está bloqueada.
-5. `L` **no** contiene una ficha activa (los fantasmas sí se permiten como aterrizaje).
+Los fantasmas **no generan movimientos** ni participan como vecinos de herencia.
 
-Cuenta como **un solo movimiento** (evento `JUMP`, `kind: 'straight'`).
+### 5.2 Adyacencia para compartir
 
-### 5.2 Cadena de saltos rectos
+Dos fichas activas son vecinas si sus posiciones difieren en exactamente una unidad en una
+sola coordenada. **No se exige que la arista entre ellas esté libre de paredes**: la herencia
+es una regla abstracta; únicamente se valida la celda destino.
 
-Si `L` contiene **otra** ficha activa, la cadena continúa en la misma dirección:
+### 5.3 Cierre transitivo
 
 ```text
-CHAIN_STRAIGHT(state, P, d):
-  cur  = P
-  over = []
-  loop:
-    nxt = cur + d
-    if nxt fuera del tablero:            return NO_LANDING
-    if edge(cur, nxt) bloqueada:         return NO_LANDING
-    if cell(nxt) tiene ficha ACTIVA:
-        over.push(nxt)
-        cur = nxt
-        continue
-    else:
-        // nxt libre (o fantasma): aterrizaje
-        if over.length == 0: return STEP(nxt)   // no era salto
-        return CHAIN(landing = nxt, over)       // aterriza en la primera celda libre
+Moves(p) = Base(p) ∪ ⋃ Moves(q)   para toda ficha q vecina de p
 ```
 
-- **Sin límite artificial** de longitud.
-- Se **detiene en la primera celda libre**.
-- Si antes de encontrar una celda libre aparece borde o pared, la cadena **no tiene aterrizaje**
-  (falla en esa dirección). En tal caso puede aplicar el salto en L (§5.3).
-- La cadena cuenta como **un solo movimiento** (`JUMP`, `kind: 'chain'`).
+El conjunto se calcula por iteración hasta punto fijo (los conjuntos solo crecen y son
+finitos). El orden de introducción es determinista: fichas por `colorIndex` ascendente y
+direcciones en orden N, S, E, O.
 
-### 5.3 Salto en L
+Un destino heredado es válido si está dentro del tablero y no contiene una ficha activa.
+**No se comprueba ningún camino desde `p` hasta el destino**. Las celdas ocupadas por fichas
+activas nunca entran en los conjuntos, porque `Base` ya las excluye para todas las fichas;
+por tanto una ficha nunca se hereda a sí misma como destino.
 
-Si el **salto recto** está bloqueado **por pared o borde** (y **no** por otra ficha), se
-permiten las **dos celdas perpendiculares laterales** a la ficha saltada.
+### 5.4 Clasificación y eventos
 
-Desde `P`, dirección `d`, `O = P + d` con ficha activa. Sean `p1`, `p2` las dos direcciones
-perpendiculares a `d`. La celda lateral es `Lk = O + pk` (`k = 1, 2`).
+- Un destino de `Base(p)` conserva `kind: 'step'` y emite `MOVE`.
+- Un destino incorporado por herencia tiene `kind: 'inherited'`, `over: []` y `via` con el
+  `id` del vecino que lo introdujo; emite `JUMP` con `kind: 'inherited'` y el mismo `via`.
+- Si un destino es alcanzable tanto de forma propia como heredada, prevalece `step`.
+- `getLegalMoves(id, { simple: true })` devuelve solo los destinos base, sin herencia.
 
-Salto en L a `Lk` es legal si:
+### 5.5 Escenarios (ASCII)
 
-1. `O` contiene una ficha **activa**.
-2. El salto recto `P -> O + d` está bloqueado por **pared o borde** (no por otra ficha).
-3. `Lk` está dentro del tablero.
-4. `Lk` **no** contiene ficha activa (fantasma permitido).
-5. Es **accesible desde `P` sin cruzar pared** por el camino que rodea a `O`:
-   sea `Mk = P + pk` (celda perpendicular a `P`). Deben estar libres:
-   - `EWEdge`/`NSEdge` entre `P` y `Mk`, y
-   - `EWEdge`/`NSEdge` entre `Mk` y `Lk`.
+Leyenda: `P` = ficha que se mueve, `O` = ficha activa vecina, `g` = fantasma, `.` = libre.
 
-> Justificación de (5): el salto en L es un rodeo físico por la esquina compartida por
-> `P, O, Mk, Lk`. Como `O` está ocupada, el único corredor posible es `P -> Mk -> Lk`, luego
-> ambas aristas deben estar libres. (Se documenta explícitamente porque es la condición que
-> más variantes implementan de forma distinta.)
-
-El salto en L cuenta como **un único movimiento** (`JUMP`, `kind: 'L'`) y **no** se combina con
-la cadena recta (aunque `Lk` contenga otra ficha activa, no se encadena).
-
-```ts
-function perpendicular(dir: 'N'|'S'|'E'|'W'): ['N'|'S'|'E'|'W', 'N'|'S'|'E'|'W'] {
-  if (dir === 'N' || dir === 'S') return ['E', 'W'];
-  return ['N', 'S'];
-}
-```
-
-### 5.4 Escenarios (ASCII)
-
-Leyenda: `P` = saltador, `O` = ficha activa saltada, `g` = fantasma, `.` = libre,
-`X` = arista bloqueada por pared, `#` = borde.
-
-**Escenario 1 — Salto recto libre.** `P(1,1)`, `O(1,2)`. Aterriza en `(1,3)`.
+**Escenario 1 — Herencia directa.** `P(1,1)`, `O(1,2)`. `O` puede ir a `(1,3)`, luego `P`
+también: `JUMP inherited`, `via = O`.
 
 ```text
         c0  c1  c2  c3  c4
    r0    .   .   .   .   .
-   r1    .   P   O   .   .     -> JUMP straight  P(1,1) -> (1,3)
+   r1    .   P   O   .   .     -> JUMP inherited  P(1,1) -> (1,3), via=O
    r2    .   .   .   .   .
 ```
 
-**Escenario 2 — Recto bloqueado por pared -> L.** Pared bloquea `O(1,2)-(1,3)`.
-Laterales `(0,2)` y `(2,2)`.
+**Escenario 2 — Pared entre las fichas.** La pared no bloquea la herencia; solo se valida el
+destino.
 
 ```text
         c0  c1  c2  c3  c4
-   r0    .   .   a   .   .     a = (0,2) candidato L
-   r1    .   P   O   X   .     X bloquea O->(1,3)
-   r2    .   .   b   .   .     b = (2,2) candidato L
+   r1    .   P   X   O   .     -> P hereda los movimientos de O aunque haya X entre ellas
 ```
 
-Si `EWEdge(1,2)` (entre `(1,2)` y `(1,3)`) está bloqueada, el salto recto falla por pared y
-se permiten `(0,2)` y `(2,2)` (sujeto a las condiciones 3–5).
-
-**Escenario 3 — Recto bloqueado por borde -> L.** `P(1,size-2)`, `O(1,size-1)` en el borde este.
+**Escenario 3 — Herencia transitiva.** `P(1,1)`, `O1(1,2)`, `O2(1,3)`, libre `(1,4)`.
+`P` alcanza `(1,4)` con `via = O1`.
 
 ```text
-        c...  c(size-2)  c(size-1)   #
-   r0    .      .          a
-   r1    .      P          O          #     salto recto -> fuera del tablero
-   r2    .      .          b
+        c0  c1  c2  c3  c4
+   r1    .   P   O1  O2  .     -> JUMP inherited  P(1,1) -> (1,4), via=O1
 ```
 
-El salto recto queda fuera del tablero, luego se permiten los laterales `a` y `b`.
-
-**Escenario 4 — Lateral ocupada.** Igual que el escenario 2, pero `(0,2)` tiene ficha activa.
+**Escenario 4 — Destino ocupado.** Igual que el escenario 1, pero `(1,3)` tiene ficha activa.
+El destino no se ofrece; `move` devuelve `CELL_OCCUPIED`.
 
 ```text
         c0  c1  c2  c3
-   r0    .   .   O   .     (0,2) ocupada -> no valida como L
-   r1    .   P   O   X
-   r2    .   .   b   .     solo (2,2) es candidato valido
+   r1    .   P   O   O2     (1,3) ocupada -> destino excluido
 ```
 
-**Escenario 5 — Cadena de dos fichas.** `P(1,1)`, `O1(1,2)`, `O2(1,3)`, libre `(1,4)`.
-
-```text
-        c0  c1  c2  c3  c4
-   r1    .   P   O1  O2  .     -> JUMP chain  P(1,1) -> (1,4), over=[(1,2),(1,3)]
-```
-
-**Escenario 6 — Fantasma intermedio.** `P(1,1)`, `g(1,2)` fantasma. No hay salto: el fantasma
-es transitable, así que es un **paso simple** a `(1,2)`.
+**Escenario 5 — Fantasma vecino.** `P(1,1)`, `g(1,2)` fantasma. El fantasma no transmite
+movimientos; `P` entra en su celda como **paso simple**.
 
 ```text
         c0  c1  c2  c3
    r1    .   P   g   .     -> MOVE simple  P(1,1) -> (1,2)   (no JUMP)
 ```
 
+**Escenario 6 — Fantasma como destino heredado.** `P(1,1)`, `O(1,2)`, `g(1,3)` fantasma.
+`O` puede entrar en `(1,3)` y `P` hereda ese destino.
+
+```text
+        c0  c1  c2  c3
+   r1    .   P   O   g     -> JUMP inherited  P(1,1) -> (1,3), via=O
+```
+
 **Escenario 7 — Aterrizaje en meta propia.** `P(1,1)`, `O(1,2)`, meta propia `(1,3)`.
 
 ```text
         c0  c1  c2  c3
-   r1    .   P   O   G     G = goal propio -> JUMP straight y PLAYER_WON
+   r1    .   P   O   G     G = goal propio -> JUMP inherited y PLAYER_WON
 ```
 
 **Escenario 8 — Aterrizaje en meta ajena.** `P(1,1)`, `O(1,2)`, meta ajena `(1,3)`.
 
 ```text
         c0  c1  c2  c3
-   r1    .   P   O   E     E = meta ajena -> JUMP straight y CAMPING_ENTERED
+   r1    .   P   O   E     E = meta ajena -> JUMP inherited y CAMPING_ENTERED
 ```
 
 ---
@@ -616,7 +575,7 @@ es transitable, así que es un **paso simple** a `(1,2)`.
 ### 6.1 Meta propia
 
 Al aterrizar en la meta propia (`to === goal`), el jugador **gana inmediatamente**. No importa
-si llegó por paso simple o por salto. `status = 'finished'`, `winnerId = playerId`, evento
+si llegó por paso propio o por movimiento heredado. `status = 'finished'`, `winnerId = playerId`, evento
 `PLAYER_WON`. No se emite `TURN_CHANGED`.
 
 ### 6.2 Meta ajena y camping
@@ -843,17 +802,17 @@ La caché es puramente una optimización y nunca altera la lógica.
 
 ```ts
 interface LegalMoveOptions { simple?: boolean }
-type MoveKind = 'step' | 'straight' | 'chain' | 'L';
-interface MoveOption { to: Cell; kind: MoveKind; over: Cell[] }
+type MoveKind = 'step' | 'inherited';
+interface MoveOption { to: Cell; kind: MoveKind; over: Cell[]; via: string | null }
 
 function getLegalMoves(playerId: string, opts?: LegalMoveOptions): MoveOption[];
 function getLegalWallPlacements(playerId: string): Wall[];
 ```
 
-- `getLegalMoves(id, { simple: true })`: solo **pasos ortogonales simples** (§4), excluyendo
-  saltos. Respeta camping: si el jugador está en camping, excluye la meta actual (salvo que no
-  haya otra salida).
-- `getLegalMoves(id)`: completo, incluye pasos simples y todos los saltos (§5).
+- `getLegalMoves(id, { simple: true })`: solo **pasos ortogonales propios** (§4), sin
+  movimientos heredados. Respeta camping: si el jugador está en camping, excluye la meta actual
+  (salvo que no haya otra salida).
+- `getLegalMoves(id)`: completo, incluye pasos propios y todos los movimientos heredados (§5).
 - `getLegalWallPlacements(id)`: todas las paredes válidas que el jugador podría colocar ahora
   (respetando inventario, colisiones y anti-encierro). Devuelve `[]` si está en camping.
 
@@ -869,7 +828,7 @@ Comportamiento:
    **salgan** de la meta actual. Si no hay salida, "quedarse" (permanecer).
 2. Si no está en camping: elegir entre los movimientos **simples** legales (paso ortogonal).
 3. **Fallback**: si no hay movimientos simples legales, elegir cualquier movimiento legal
-   (incluyendo saltos).
+   (incluyendo los heredados).
 4. Si no hay ningún movimiento legal: **pasar turno** (emite `TURN_CHANGED` al siguiente).
 5. La elección aleatoria usa `rng` (inyectable) — único punto de no determinismo del motor.
 6. `autoMove` **nunca** coloca paredes (solo mueve o pasa).
@@ -942,7 +901,7 @@ type ActionResult =
 interface TurnState {
   turnPlayerId: string;
   turnNumber: number;
-  legalMoves: MoveOption[];       // completo (con saltos)
+  legalMoves: MoveOption[];       // propio + heredado
   legalSimpleMoves: MoveOption[]; // solo pasos simples
   legalWalls: Wall[];
 }
@@ -984,14 +943,14 @@ cuando el caso los necesita.
 | 4 | No adyacente | P0 `(4,4)` | `move(P0,(4,6))` | sin cambio | `NOT_ADJACENT` |
 | 5 | Turno incorrecto | turno de P0 | `move(P1,(4,5))` | sin cambio | `NOT_YOUR_TURN` |
 | 6 | Arista bloqueada por pared | P0 `(4,4)`, `V(5,3)` | `move(P0,(4,5))` | sin cambio | `NOT_ADJACENT` |
-| 7 | Salto recto libre | P0 `(1,1)`, P1 `(1,2)` | `move(P0,(1,3))` | `JUMP straight` | — |
-| 8 | Salto recto bloqueado por pared -> L | P0 `(1,1)`, P1 `(1,2)`, `V(3,1)` | `move(P0,(0,2))` | `JUMP L` | — |
-| 9 | Salto recto bloqueado por borde -> L | P0 `(1,size-2)`, P1 `(1,size-1)` | `move(P0,(0,size-1))` | `JUMP L` | — |
-| 10 | L con lateral ocupada | caso 8 + P2 activo en `(0,2)` | `move(P0,(0,2))` | sin cambio | `NOT_ADJACENT` |
-| 11 | Cadena de dos fichas | P0 `(1,1)`, P1 `(1,2)`, P2 `(1,3)` | `move(P0,(1,4))` | `JUMP chain over=[(1,2),(1,3)]` | — |
-| 12 | Cadena sin aterrizaje (pared tras fichas) | caso 11 + `V(4,1)` | `move(P0,(1,4))` | sin cambio | `NOT_ADJACENT` |
-| 13 | Fantasma transitable | P1 ghost en `(1,2)` | `move(P0,(1,2))` | `MOVE` simple | — |
-| 14 | Fantasma no se salta | P1 ghost en `(1,2)` | `move(P0,(1,3))` | sin cambio | `NOT_ADJACENT` |
+| 7 | Herencia directa | P0 `(1,1)`, P1 `(1,2)` | `move(P0,(1,3))` | `JUMP inherited via=P1` | — |
+| 8 | Pared entre fichas | P0 `(1,1)`, P1 `(1,2)`, `V(1,1)` | `move(P0,(1,3))` | `JUMP inherited` | — |
+| 9 | Herencia transitiva | P0 `(1,1)`, P1 `(1,2)`, P2 `(1,3)` | `move(P0,(1,4))` | `JUMP inherited via=P1` | — |
+| 10 | Destino ocupado | caso 9 + P3 activo en `(1,4)` | `move(P0,(1,4))` | sin cambio | `CELL_OCCUPIED` |
+| 11 | Pared tras la cadena | caso 9 + `V(3,1)` | `move(P0,(1,4))` | sin cambio | `NOT_ADJACENT` |
+| 12 | Fantasma no transmite | P1 ghost en `(1,2)` | `move(P0,(1,3))` | sin cambio | `NOT_ADJACENT` |
+| 13 | Fantasma como destino | P1 `(1,2)`, P2 ghost en `(1,3)` | `move(P0,(1,3))` | `JUMP inherited` | — |
+| 14 | `simple` sin heredados | P0 `(1,1)`, P1 `(1,2)` | `getLegalMoves(P0,{simple:true})` | solo `(0,1)`, `(2,1)`, `(1,0)` | — |
 | 15 | Meta propia gana | P0 `(1,1)`, P1 `(1,2)`, goal P0 `(1,3)` | `move(P0,(1,3))` | `JUMP` + `PLAYER_WON`, `finished` | — |
 | 16 | Meta ajena -> camping | P0 `(1,1)`, P1 `(1,2)`, goal P1 `(1,3)` | `move(P0,(1,3))` | `JUMP` + `CAMPING_ENTERED` | — |
 | 17 | Camping: no puede poner pared | P0 en camping en `E` | `placeWall(P0,'H',0,0)` | sin cambio | `CAMPING_NO_WALL` |
@@ -1008,7 +967,7 @@ cuando el caso los necesita.
 | 28 | Jugar tras terminar | partida `finished` | `move(P0,(4,5))` | sin cambio | `GAME_FINISHED` |
 | 29 | Tablero mínimo 8x8 | `size=8` | movimiento y pared válidos | `MOVE`/`WALL_PLACED` | — |
 | 30 | Tablero máximo 16x16 | `size=16` | BFS y movimiento válidos | `MOVE`, `hasPath=true` | — |
-| 31 | 8 jugadores | `playerCount=8` | recorrido completo de turnos | 8 turnos por ronda, sin saltos | — |
+| 31 | 8 jugadores | `playerCount=8` | recorrido completo de turnos | 8 turnos por ronda | — |
 | 32 | Auto-move simple | P0 con varias salidas | `autoMove(P0,rngFijo)` | `MOVE` determinista | — |
 | 33 | Timeout simulado | turno de P0, 30 s (fuera) | `autoMove(P0,rngFijo)` | mismo resultado que test 32 | — |
 | 34 | Fin y rematch | partida `finished` | `createGame(...)` nueva semilla | nueva instancia, `status='playing'` | — |
@@ -1041,7 +1000,7 @@ Se deben verificar tras cada acción en pruebas de propiedades (fuzzing):
 | `PublicGameState` | Proyección pública del estado (sin `seed`). |
 | `ActionResult` | Resultado discriminado de una acción (`ok` + `events` o `error`). |
 | `GameEvent` | Evento emitido por el motor al aplicar una acción. |
-| `MoveOption` | Movimiento legal con `to`, `kind` y fichas saltadas (`over`). |
+| `MoveOption` | Movimiento legal con `to`, `kind`, `over` y `via`. |
 | `TurnState` | Resumen del turno activo (jugador, movimientos y paredes legales). |
 | `Rng` | Fuente de aleatoriedad inyectable; solo la usa `autoMove`. |
 | `ghost` | Ficha desconectada, transitable y excluida del anti-encierro. |

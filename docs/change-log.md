@@ -104,3 +104,11 @@ Los archivos de texto usan finales de línea LF.
 - **Tareas derivadas:**
   - [ ] Probar en el navegador 8 × 8 y 16 × 16 que al pasar por el borde de una casilla legal solo se resalta la casilla y el click mueve la ficha.
   - [ ] Verificar que el canal sigue colocando paredes con un solo click, también en móvil con radio de 4 px, y que H/V en un cruce siguen resolviéndose por centro más cercano.
+
+## 2026-11-27 — Movimiento compartido entre fichas vecinas
+
+- **Petición:** sustituir los saltos en línea recta y en L por una regla en la que una ficha adyacente a otra pueda usar también los movimientos legales de esa ficha, de forma transitiva.
+- **Solución/respuesta:** `movement.js` calcula los pasos base de cada ficha activa y cierra transitivamente los movimientos de las fichas vecinas (sin comprobar paredes entre ellas ni camino hasta el destino); se eliminaron el salto recto, la cadena y el salto en L. Los destinos heredados viajan con `kind: 'inherited'`, `via` y `over: []`, y `GameEngine` emite `JUMP` con esos campos. Se actualizaron los tests de saltos por pruebas de herencia directa, transitiva, paredes, fantasmas, destinos ocupados, proveniencia, `simple:true`, meta propia y camping; también `docs/rules.md`, `docs/ui.md`, `docs/network.md` y el texto de ayuda de `index.html`. `npm test` (45/45), `npm run check`, `git diff --check` y la comprobación LF pasan.
+- **Tareas derivadas:**
+  - [ ] Probar en el navegador que las celdas heredadas se resaltan y que un click mueve a la ficha al destino compartido.
+  - [ ] Verificar en local y online que el evento `JUMP inherited` llega con `via` correcto y que los fantasmas no aparecen como fuentes de herencia.

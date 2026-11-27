@@ -71,7 +71,7 @@ El motor de reglas (`src/core`) es puro y no conoce red, sockets, timers ni pers
 | `server/Room.js` | Máquina de estados de una sala (`lobby`/`playing`/`finished`), jugadores, configuración, host, timers de turno, contadores AFK, fantasmas, reconexión, fin de partida y revancha. |
 | `server/matchmaking.js` | Cola FIFO de emparejamiento casual, cancelación, emparejamiento en grupos de 2..8 y creación de salas internas a través de `RoomManager`. |
 | `server/rateLimit.js` (opcional, recomendado) | Token bucket por socket y por IP para mensajes y handshakes. |
-| `src/core/GameEngine.js` | Reglas puras: tablero, movimientos, saltos, paredes, caminos, metas, turnos, ganador y estado público. Sin I/O ni timers. |
+| `src/core/GameEngine.js` | Reglas puras: tablero, movimientos propios y heredados, paredes, caminos, metas, turnos, ganador y estado público. Sin I/O ni timers. |
 
 Nombres adicionales permitidos si mantienen esta separación: `server/validation.js`, `server/session.js`, `server/constants.js`. No se deben mezclar reglas de juego con gestión de sockets.
 
@@ -519,7 +519,7 @@ Todos los mensajes son texto JSON con esta forma:
 | `client.startGame` | `{}` | Lobby, host | ≥2 conectados no fantasmas; config válida; sala no vacía | `server.gameStarted` a todos |
 | `client.quickPlay` | `{}` | `IDENTIFIED`, sin sala ni cola | §4; cola no llena | `server.matchSearching`; luego `server.matchFound` + `server.gameStarted` |
 | `client.cancelQuickPlay` | `{}` | `IN_QUEUE` | Estar en cola | `server.matchCancelled` |
-| `client.move` | `{ to: { x, y } }` | `playing`, turno del jugador, activo (no fantasma) | Enteros en tablero; destino ≠ posición actual; reglas del motor (adyacencia/salto/pared) | `server.gameState` a todos; posible `server.gameOver` |
+| `client.move` | `{ to: { x, y } }` | `playing`, turno del jugador, activo (no fantasma) | Enteros en tablero; destino ≠ posición actual; reglas del motor (movimiento propio/heredado/pared) | `server.gameState` a todos; posible `server.gameOver` |
 | `client.placeWall` | `{ orientation, x, y }` | `playing`, turno del jugador, activo | `H`/`V`; enteros 0..size-2; pared no solapada; camino válido; `wallsLeft > 0` | `server.gameState` a todos; posible `server.gameOver` |
 | `client.leaveGame` | `{}` | `playing`, jugador activo | Pasar a fantasma; si solo queda 1 activo, fin de partida | `server.playerDisconnected` a todos + `server.gameState`; posible `server.gameOver` |
 | `client.rematch` | `{}` | `finished`, conectado | Sala finalizada; eliminar fantasmas; reiniciar lobby | `server.rematchLobby` a todos |
@@ -872,7 +872,7 @@ En el segundo turno inválido acumulado se envía además `server.toast` y `serv
 | `NOT_ENOUGH_PLAYERS` | Menos de 2 jugadores conectados no fantasmas. |
 | `NOT_YOUR_TURN` | Acción de juego fuera de turno. |
 | `PLAYER_GHOST` | Acción de un jugador fantasma. |
-| `INVALID_MOVE` | Movimiento ilegal (no adyacente, ocupado, fuera de tablero, salto inválido). |
+| `INVALID_MOVE` | Movimiento ilegal (no alcanzable, ocupado o fuera de tablero). |
 | `CAMPING_FORCED_MOVE` | `client.move` con destino igual a la posición actual; no se permite pasar. |
 | `INVALID_WALL` | Pared ilegal no cubierta por un código más específico. |
 | `INVALID_ORIENTATION` | Orientación distinta de `H` o `V`. |
@@ -1008,9 +1008,9 @@ El cliente solo debe usar `remainingSeconds` como referencia visual; la autorida
 
 Al expirar el turno, el servidor actúa por el jugador:
 
-1. Obtener movimientos legales simples ortogonales (adyacentes, sin salto) del jugador actual.
+1. Obtener movimientos legales simples ortogonales propios (adyacentes, sin herencia) del jugador actual.
 2. Si hay al menos uno, elegir uno al azar de forma criptográfica y aplicarlo.
-3. Si no hay simples, obtener cualquier movimiento legal (incluidos saltos) y elegir uno al azar.
+3. Si no hay simples, obtener cualquier movimiento legal (incluidos los heredados) y elegir uno al azar.
 4. Si no hay ningún movimiento legal, pasar turno sin mover.
 5. El servidor puede colocar paredes automáticamente solo si una regla futura lo define; en esta versión **nunca** coloca paredes por timeout.
 
@@ -1090,8 +1090,8 @@ En `lobby`, el cierre de socket elimina al jugador de la sala (no hay fantasmas 
 - `ghost=true`, `connected=false`.
 - La ficha se desvanece visualmente en el cliente.
 - Sus paredes ya colocadas permanecen para siempre; no se retiran.
-- Su celda es **transitable**: no bloquea el paso ni cuenta como ocupada para movimientos o saltos.
-- No se puede saltar sobre un fantasma porque no ocupa celda; simplemente se entra en ella como celda libre.
+- Su celda es **transitable**: no bloquea el paso ni cuenta como ocupada para movimientos.
+- El fantasma no transmite movimientos a sus vecinos; simplemente se entra en su celda como celda libre.
 - Sus turnos se omiten automáticamente (§7.4).
 - Conserva `wallsLeft`, `colorIndex`, posición histórica y alias.
 - Si era el host, conserva el rol durante la partida; no se transfiere hasta volver a lobby.
@@ -1363,7 +1363,7 @@ Las pruebas deben automatizarse con dos o más clientes `ws` reales contra un se
 
 - `src/core` es puro, determinista y sin I/O, red, timers ni conocimiento de sockets.
 - El servidor (`Room.js`) es el dueño de la sesión, los timers, el AFK, los fantasmas, la reconexión, el estado de sala y la revancha.
-- El motor es el dueño de las reglas: tablero, movimientos, saltos, paredes, caminos, metas, turno y ganador.
+- El motor es el dueño de las reglas: tablero, movimientos propios y heredados, paredes, caminos, metas, turno y ganador.
 - El servidor nunca implementa reglas duplicadas; el motor nunca envía mensajes ni muta el estado de sala.
 
 ### 13.2 API real del motor
@@ -1464,7 +1464,7 @@ El motor nunca debe lanzar excepciones por acciones ilegales; devuelve `ok:false
 - `setGhost(playerId, false)` debe reinsertar la ficha; si la celda está ocupada, el servidor puede pedir al motor una celda libre determinista o resolverlo antes de llamar.
 - `spawnMode` y la asignación de spawns/metas son responsabilidad del motor, usando `colorIndex` y `config`; deben ser deterministas con la semilla inyectada.
 - Los fantasmas conservan `wallsLeft` y sus paredes; no se eliminan del estado público.
-- `getLegalMoves(playerId, {simple:true})` se usa para el auto-move por timeout; `getLegalMoves` sin opciones incluye saltos.
+- `getLegalMoves(playerId, {simple:true})` se usa para el auto-move por timeout; `getLegalMoves` sin opciones incluye los movimientos heredados.
 - El motor debe exponer `goal` en el estado público según §6 para que el cliente pueda renderizar la meta sin duplicar reglas.
 
 ### 13.7 Rematch

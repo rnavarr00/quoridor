@@ -63,46 +63,104 @@ test('no se puede mover fuera de turno ni a casilla ocupada', () => {
   assert.deepEqual(engine.getPlayer('a').pos, { r: 3, c: 3 });
 });
 
-test('salto recto sobre ficha adyacente', () => {
-  const engine = engineWith(twoPlayers({ a: { pos: { r: 3, c: 3 } }, b: { spawn: { r: 3, c: 4 } } }));
+test('j1 hereda los movimientos de j2 cuando son adyacentes', () => {
+  const engine = engineWith(twoPlayers({ b: { spawn: { r: 3, c: 4 } } }));
   const moves = computeLegalMoves(engine.getState(), 'a');
-  const jump = moves.find((move) => move.kind === 'straight' && move.to.r === 3 && move.to.c === 5);
-  assert.ok(jump);
+  const inherited = moves.find((move) => move.kind === 'inherited' && move.to.r === 3 && move.to.c === 5);
+  assert.ok(inherited);
+  assert.equal(inherited.via, 'b');
+  assert.deepEqual(inherited.over, []);
+  assert.ok(moves.some((move) => move.kind === 'step' && move.to.r === 2 && move.to.c === 3));
   const result = engine.move('a', { r: 3, c: 5 });
   assert.equal(result.ok, true);
   assert.equal(result.events[0].type, 'JUMP');
-  assert.deepEqual(result.events[0].over, [{ r: 3, c: 4 }]);
+  assert.equal(result.events[0].kind, 'inherited');
+  assert.equal(result.events[0].via, 'b');
+  assert.deepEqual(result.events[0].over, []);
 });
 
-test('salto en L cuando el salto recto está bloqueado por pared', () => {
-  const engine = engineWith(twoPlayers({ b: { spawn: { r: 3, c: 4 } } }));
-  engine.state.walls.push({ orientation: 'V', x: 4, y: 3 });
-  const moves = computeLegalMoves(engine.getState(), 'a');
-  const targets = moves.filter((move) => move.kind === 'L').map((move) => `${move.to.r},${move.to.c}`);
-  assert.deepEqual(targets.sort(), ['2,4', '4,4']);
-});
-
-test('cadena de saltos rectos sobre dos fichas', () => {
+test('la herencia es transitiva a través de varios vecinos', () => {
   const engine = engineWith([
     { id: 'a', spawn: { r: 3, c: 3 }, goal: { r: 0, c: 0 } },
     { id: 'b', spawn: { r: 3, c: 4 }, goal: { r: 7, c: 7 } },
     { id: 'c', spawn: { r: 3, c: 5 }, goal: { r: 0, c: 7 } },
   ]);
-  const result = engine.move('a', { r: 3, c: 6 });
-  assert.equal(result.ok, true);
-  assert.equal(result.events[0].type, 'JUMP');
-  assert.equal(result.events[0].kind, 'chain');
-  assert.equal(result.events[0].over.length, 2);
+  const moves = computeLegalMoves(engine.getState(), 'a');
+  const inherited = moves.find((move) => move.to.r === 3 && move.to.c === 6);
+  assert.ok(inherited);
+  assert.equal(inherited.kind, 'inherited');
+  assert.equal(inherited.via, 'b');
+  assert.equal(engine.move('a', { r: 3, c: 6 }).ok, true);
 });
 
-test('los fantasmas son transitables y no se saltan', () => {
+test('una pared entre j1 y j2 no impide la herencia', () => {
   const engine = engineWith(twoPlayers({ b: { spawn: { r: 3, c: 4 } } }));
-  const b = engine.getPlayer('b');
-  b.ghost = true;
-  b.connected = false;
+  engine.state.walls.push({ orientation: 'V', x: 3, y: 3 });
+  const moves = computeLegalMoves(engine.getState(), 'a');
+  assert.ok(moves.some((move) => move.kind === 'inherited'
+    && move.to.r === 3 && move.to.c === 5 && move.via === 'b'));
+});
+
+test('los fantasmas no transmiten movimientos pero sí sirven de destino', () => {
+  const engine = engineWith([
+    { id: 'a', spawn: { r: 3, c: 3 }, goal: { r: 0, c: 0 } },
+    { id: 'b', spawn: { r: 4, c: 3 }, goal: { r: 7, c: 7 } },
+    { id: 'g', spawn: { r: 3, c: 4 }, goal: { r: 0, c: 7 } },
+  ]);
+  engine.setGhost('g', true);
   const moves = computeLegalMoves(engine.getState(), 'a');
   assert.ok(moves.some((move) => move.kind === 'step' && move.to.r === 3 && move.to.c === 4));
-  assert.ok(!moves.some((move) => move.kind !== 'step' && move.to.r === 3 && move.to.c === 4));
+  assert.ok(moves.some((move) => move.kind === 'inherited' && move.via === 'b'));
+  assert.ok(!moves.some((move) => move.via === 'g'));
+});
+
+test('los destinos ocupados por fichas activas nunca se heredan', () => {
+  const engine = engineWith([
+    { id: 'a', spawn: { r: 3, c: 3 }, goal: { r: 0, c: 0 } },
+    { id: 'b', spawn: { r: 3, c: 4 }, goal: { r: 7, c: 7 } },
+    { id: 'c', spawn: { r: 3, c: 5 }, goal: { r: 0, c: 7 } },
+  ]);
+  const moves = computeLegalMoves(engine.getState(), 'a');
+  assert.ok(!moves.some((move) => move.to.r === 3 && (move.to.c === 4 || move.to.c === 5)));
+});
+
+test('simple:true devuelve solo pasos locales', () => {
+  const engine = engineWith(twoPlayers({ b: { spawn: { r: 3, c: 4 } } }));
+  const simple = computeLegalMoves(engine.getState(), 'a', { simple: true });
+  assert.ok(simple.length > 0);
+  assert.ok(simple.every((move) => move.kind === 'step'));
+  assert.ok(!simple.some((move) => move.to.r === 3 && move.to.c === 5));
+});
+
+test('la proveniencia es determinista cuando hay dos rutas', () => {
+  const engine = engineWith([
+    { id: 'a', spawn: { r: 3, c: 3 }, goal: { r: 0, c: 0 } },
+    { id: 'b', spawn: { r: 3, c: 2 }, goal: { r: 7, c: 7 } },
+    { id: 'c', spawn: { r: 2, c: 3 }, goal: { r: 0, c: 7 } },
+  ]);
+  const moves = computeLegalMoves(engine.getState(), 'a');
+  const shared = moves.find((move) => move.to.r === 2 && move.to.c === 2);
+  assert.ok(shared);
+  assert.equal(shared.via, 'c');
+});
+
+test('meta propia y meta ajena se alcanzan con movimientos heredados', () => {
+  const win = engineWith([
+    { id: 'a', spawn: { r: 3, c: 3 }, goal: { r: 3, c: 5 } },
+    { id: 'b', spawn: { r: 3, c: 4 }, goal: { r: 7, c: 7 } },
+  ]);
+  const won = win.move('a', { r: 3, c: 5 });
+  assert.equal(won.ok, true);
+  assert.equal(won.events[0].type, 'JUMP');
+  assert.ok(won.events.some((event) => event.type === 'PLAYER_WON'));
+
+  const camping = engineWith([
+    { id: 'a', spawn: { r: 3, c: 3 }, goal: { r: 0, c: 0 } },
+    { id: 'b', spawn: { r: 3, c: 4 }, goal: { r: 3, c: 5 } },
+  ]);
+  const entered = camping.move('a', { r: 3, c: 5 });
+  assert.ok(entered.events.some((event) => event.type === 'CAMPING_ENTERED'));
+  assert.deepEqual(camping.getPlayer('a').camping, { goalOwnerId: 'b', turnsOnGoal: 1 });
 });
 
 test('meta propia termina la partida', () => {
@@ -294,7 +352,7 @@ test('cruce de paredes solo con el mismo ancla', () => {
   assert.equal(engine.wallError({ orientation: 'V', x: 2, y: 0 }), null);
 });
 
-test('no se ofrece salto en L cuando falla una cadena de dos fichas', () => {
+test('una pared no crea destinos heredados más allá de la ficha', () => {
   const engine = engineWith([
     { id: 'a', spawn: { r: 3, c: 3 }, goal: { r: 0, c: 0 } },
     { id: 'b', spawn: { r: 3, c: 4 }, goal: { r: 7, c: 7 } },
@@ -302,7 +360,6 @@ test('no se ofrece salto en L cuando falla una cadena de dos fichas', () => {
   ]);
   engine.state.walls.push({ orientation: 'V', x: 5, y: 3 });
   const moves = computeLegalMoves(engine.getState(), 'a');
-  assert.ok(!moves.some((move) => move.kind === 'L'));
   assert.ok(!moves.some((move) => move.to.r === 3 && move.to.c === 6));
 });
 
