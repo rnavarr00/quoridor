@@ -886,6 +886,7 @@ Posicionamiento exacto de paredes (coordenadas 1-based de CSS Grid, según `boar
 - Representación:
   - Punto centrado de 28–32 % del tamaño de la celda, color del jugador.
   - Hover: halo/anillo; foco: anillo de foco visible; click: envía `client.move`.
+  - `board.js` marca la celda apuntada con `.is-hovered`; el cursor sobre una celda gana siempre sobre la pared y oculta pista, preview y ancla, para que solo se vea la acción que se ejecutará.
   - La celda destino recibe `data-legal="true"` y `aria-label` “Movimiento legal a D4”.
   - La ficha actual no muestra punto.
 - Teclado:
@@ -909,10 +910,11 @@ Posicionamiento exacto de paredes (coordenadas 1-based de CSS Grid, según `boar
 - Se renderiza un botón de ancla por intersección para teclado; las anclas legales reciben `data-legal="true"` y un único `tabIndex` móvil (roving).
 - El ratón **no necesita modo ni atajo**:
   - Todas las paredes legales (H y V) se muestran como pistas visuales sobre los canales, con `pointer-events: none` para que no tapen las celdas.
-  - Al pasar el cursor por un canal se resalta la pista legal más cercana y se muestra el preview con el color del jugador.
-  - Un click dentro del radio de esa pista coloca la pared inmediatamente.
+  - Si el cursor está sobre una celda, gana la celda: se ocultan pista, preview y ancla, y el click mueve la ficha si el destino es legal; en esa zona nunca se coloca una pared.
+  - Solo al estar en un canal (fuera de las celdas) se resalta la pista legal más cercana y se muestra el preview con el color del jugador.
+  - Un click en el canal dentro del radio de esa pista coloca la pared inmediatamente.
   - Si H y V se solapan, gana la pista cuyo centro esté más cerca del cursor.
-  - El radio de captura fuera de la pista es `--wall-hit-radius`: 3 px en escritorio y 4 px en móvil. El ancla usa el mismo radio, sin ampliar el canal con `--wall-thickness`, para que el centro de la celda siga seleccionando movimientos.
+  - El radio de captura `--wall-hit-radius` (3 px en escritorio, 4 px en móvil) se aplica solo a lo largo del canal; no entra en las filas ni columnas de celdas. El `::after` del ancla es solo visual (`pointer-events: none`) y usa el mismo radio sin ampliar `--wall-thickness`.
 - Teclado:
   - `H` por defecto; `R` alterna la orientación del ancla enfocada y se anuncia.
   - Flechas navegan entre anclas legales de la orientación actual; `Enter`/`Espacio` coloca; `Escape` oculta el preview.

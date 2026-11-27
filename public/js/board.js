@@ -158,6 +158,7 @@ export class BoardRenderer {
     this.hints = null;
     this.preview = null;
     this.hoverAnchor = null;
+    this.hoverTarget = null;
     this.wallHitRadius = DEFAULT_WALL_HIT_RADIUS;
     this.refreshWallHitRadius();
     if (typeof window.matchMedia === 'function') {
@@ -268,6 +269,7 @@ export class BoardRenderer {
   }
 
   render(view, options = {}) {
+    this.clearHover();
     const normalized = normalizeView(view);
     const signature = normalized.players.map((player) => `${player.id}:${player.colorIndex}`).sort().join('|');
     if (normalized.size !== this.size || signature !== this.playerSignature) {
@@ -526,6 +528,7 @@ export class BoardRenderer {
   }
 
   setInteractive(canAct) {
+    this.clearHover();
     this.canAct = Boolean(canAct);
     this.computeLegalHints(Boolean(this.isMyTurn && this.canAct && !this.pending));
     this.updateCells();
@@ -558,7 +561,9 @@ export class BoardRenderer {
     for (const [anchorKey, item] of this.anchors) item.tabIndex = anchorKey === key ? 0 : -1;
     this.activeAnchorKey = key;
     anchor.focus();
-    this.showPreview(x, y, this.orientation);
+    const hint = this.hintEls.get(this.wallKey(this.orientation, x, y));
+    if (hint) this.setHoveredWall(hint, anchor);
+    else this.showPreview(x, y, this.orientation);
   }
 
   showPreview(x, y, orientation = this.orientation) {
@@ -584,15 +589,62 @@ export class BoardRenderer {
     }
   }
 
+  clearHoveredCell() {
+    if (this.hoverTarget?.type === 'cell') {
+      this.hoverTarget.element.classList.remove('is-hovered');
+      this.hoverTarget = null;
+    }
+  }
+
+  setHoveredCell(cell) {
+    this.clearHoveredCell();
+    if (this.hoverTarget?.type === 'wall' || (this.preview && !this.preview.hidden)) this.hidePreview();
+    if (!cell) return;
+    cell.classList.add('is-hovered');
+    this.hoverTarget = {
+      type: 'cell',
+      element: cell,
+      key: this.cellKey(Number(cell.dataset.x), Number(cell.dataset.y)),
+    };
+  }
+
+  setHoveredWall(hint, anchor = null) {
+    this.clearHoveredCell();
+    this.hoverAnchor = hint.dataset.key;
+    for (const [key, other] of this.hintEls) other.classList.toggle('is-hovered', key === hint.dataset.key);
+    for (const other of this.anchors.values()) other.classList.remove('is-hovered');
+    if (anchor) anchor.classList.add('is-hovered');
+    this.hoverTarget = { type: 'wall', element: hint, key: hint.dataset.key };
+    this.showPreview(hint.dataset.x, hint.dataset.y, hint.dataset.orientation);
+  }
+
   hidePreview() {
     if (!this.preview) return;
     this.preview.hidden = true;
     this.preview.classList.remove('is-visible');
     for (const hint of this.hintEls.values()) hint.classList.remove('is-hovered');
+    for (const anchor of this.anchors.values()) anchor.classList.remove('is-hovered');
+    this.hoverAnchor = null;
+    if (this.hoverTarget?.type === 'wall') this.hoverTarget = null;
+  }
+
+  clearHover() {
+    this.clearHoveredCell();
+    this.hidePreview();
   }
 
   onClick(event) {
-    const hint = this.findHintNearPointer(event) || event.target.closest('.board__wall-hint');
+    const cell = event.target.closest('.board__cell');
+    if (cell) {
+      if (!this.isMyTurn || !this.canAct || this.pending) return;
+      const key = this.cellKey(Number(cell.dataset.x), Number(cell.dataset.y));
+      if (!this.legalMoves.has(key)) return;
+      this.setActiveCell(Number(cell.dataset.x), Number(cell.dataset.y));
+      if (this.options.onMove) this.options.onMove({ x: Number(cell.dataset.x), y: Number(cell.dataset.y) });
+      return;
+    }
+    const hint = (event.detail > 0 ? this.findHintNearPointer(event) : null)
+      || event.target.closest('.board__wall-hint');
     if (hint) {
       event.preventDefault();
       this.placeWallAt(hint.dataset.x, hint.dataset.y, hint.dataset.orientation);
@@ -602,14 +654,7 @@ export class BoardRenderer {
     if (anchor) {
       event.preventDefault();
       this.placeWallAt(anchor.dataset.x, anchor.dataset.y, this.orientation);
-      return;
     }
-    const cell = event.target.closest('.board__cell');
-    if (!cell || !this.isMyTurn || !this.canAct || this.pending) return;
-    const key = this.cellKey(Number(cell.dataset.x), Number(cell.dataset.y));
-    if (!this.legalMoves.has(key)) return;
-    this.setActiveCell(Number(cell.dataset.x), Number(cell.dataset.y));
-    if (this.options.onMove) this.options.onMove({ x: Number(cell.dataset.x), y: Number(cell.dataset.y) });
   }
 
   placeWallAt(x, y, orientation = this.orientation) {
@@ -711,7 +756,9 @@ export class BoardRenderer {
       if (!rect.width || !rect.height) continue;
       const dx = Math.max(rect.left - px, 0, px - rect.right);
       const dy = Math.max(rect.top - py, 0, py - rect.bottom);
-      if (dx > this.wallHitRadius || dy > this.wallHitRadius) continue;
+      if (hint.dataset.orientation === 'H') {
+        if (dy > 0 || dx > this.wallHitRadius) continue;
+      } else if (dx > 0 || dy > this.wallHitRadius) continue;
       const centerDistance = Math.hypot(
         px - (rect.left + rect.right) / 2,
         py - (rect.top + rect.bottom) / 2,
@@ -726,22 +773,23 @@ export class BoardRenderer {
 
   onPointerMove(event) {
     if (!this.isMyTurn || !this.canAct || this.pending) return;
-    const hint = this.findHintNearPointer(event);
+    const cell = event.target.closest('.board__cell');
+    if (cell) {
+      this.setHoveredCell(cell);
+      return;
+    }
+    const hint = this.findHintNearPointer(event) || event.target.closest('.board__wall-hint');
     if (!hint) {
+      this.clearHoveredCell();
       if (!event.target.closest('.board__anchor')) this.hidePreview();
       return;
     }
-    this.hoverAnchor = hint.dataset.key;
-    for (const [key, other] of this.hintEls) {
-      other.classList.toggle('is-hovered', key === hint.dataset.key);
-    }
-    this.showPreview(hint.dataset.x, hint.dataset.y, hint.dataset.orientation);
+    this.setHoveredWall(hint, event.target.closest('.board__anchor'));
   }
 
   onPointerLeave() {
     if (document.activeElement?.closest?.('.board__anchor')) return;
-    this.hoverAnchor = null;
-    this.hidePreview();
+    this.clearHover();
   }
 
   onFocusIn(event) {
@@ -750,7 +798,9 @@ export class BoardRenderer {
     const x = Number(anchor.dataset.x);
     const y = Number(anchor.dataset.y);
     this.activeAnchorKey = this.cellKey(x, y);
-    this.showPreview(x, y, this.orientation);
+    const hint = this.hintEls.get(this.wallKey(this.orientation, x, y));
+    if (hint) this.setHoveredWall(hint, anchor);
+    else this.showPreview(x, y, this.orientation);
   }
 
   onFocusOut(event) {

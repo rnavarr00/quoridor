@@ -95,4 +95,12 @@ Los archivos de texto usan finales de línea LF.
 - **Tareas derivadas:**
   - [ ] Probar en navegador 8 × 8 y 16 × 16 que el centro de las celdas mueve la ficha y que las paredes se colocan con el canal resaltado.
   - [ ] Verificar en móvil el radio de 4 px, el teclado y que no se pierde precisión al colocar paredes.
-  - [ ] Reiniciar o drenar salas creadas antes del cambio con tamaño 17-20.
+   - [ ] Reiniciar o drenar salas creadas antes del cambio con tamaño 17-20.
+
+## 2026-11-27 — Hover exclusivo entre casilla y pared
+
+- **Petición:** evitar que al pasar el cursor se resalten a la vez la casilla de movimiento y la pared, dejando dudoso qué hará un click; en la franja solapada debe ganar la casilla y no mostrarse la pared.
+- **Solución/respuesta:** `board.js` decide el hover en `onPointerMove`: si el objetivo es `.board__cell`, marca solo esa celda con `.is-hovered` y oculta pista, preview y ancla; el click trata primero la celda y solo consulta paredes fuera de ella. `findHintNearPointer` aplica el radio solo a lo largo del canal; `hidePreview`, `clearHover`, `render` y `setInteractive` limpian el estado obsoleto, y el foco de ancla comparte el mismo resaltado. `styles.css` sustituye los `:hover` de celda y ancla por `.is-hovered` controlado por JS, hace que el `::after` del ancla no capture eventos y elimina la regla muerta de `:hover` de pista. Se actualizó `docs/ui.md`. `npm test` (41/41), `npm run check`, `node --check public/js/board.js`, `git diff --check` y la comprobación LF pasan.
+- **Tareas derivadas:**
+  - [ ] Probar en el navegador 8 × 8 y 16 × 16 que al pasar por el borde de una casilla legal solo se resalta la casilla y el click mueve la ficha.
+  - [ ] Verificar que el canal sigue colocando paredes con un solo click, también en móvil con radio de 4 px, y que H/V en un cruce siguen resolviéndose por centro más cercano.
